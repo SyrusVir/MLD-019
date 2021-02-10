@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define SERIAL_TERM "/dev/ttyS0" //target PL011 UART module
+#define SERIAL_TERM "/dev/ttyAMA0" //target PL011 UART module
 #define BAUD 9600
 
 void checkStatus(int status, char* error_str) {
