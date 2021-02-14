@@ -51,9 +51,12 @@ char* mldMsgToString(char* buff, mld_msg_u msg) {
      * 
      *  Command hex codes are 5 bytes long, transmitted as a 
      *  string of hex characters followed by a carriage return.
+     * 
+     *  Resulting stirng is placed in [buff]. The pointer to [buff]
+     *  is also returned.
      *  **/
     
-    sprintf(buff,"%0*llX\r",10, msg.msg_hex);   //convert augmented number to 4-byte hex string with carriage return
+    sprintf(buff,"%0*llX\r",10, msg.msg_hex);   //0-padded, 10-character hex string with carriage return appended (11 total)
 
     return buff;
 }   //end mldMsgToString()
@@ -71,7 +74,7 @@ mld_t mldInit(char* sertty, int baud) {
     
     if (mld.serial_handle < 0) {
         //exit with error if serial connection could not be opened
-        printf("CRITICAL ERROR:\n\t Failed to open serial connection at %s", sertty);
+        printf("CRITICAL Error:\n\t Failed to open serial connection at %s", sertty);
         exit(mld.serial_handle);
     } 
     else {

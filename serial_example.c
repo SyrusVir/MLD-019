@@ -2,43 +2,36 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <MLD019.h>
 
 #define SERIAL_TERM "/dev/ttyAMA0" //target PL011 UART module
 #define BAUD 9600
 
-void checkStatus(int status, char* error_str) {
-    if (status < 0) {
-        char str[] = " Error\n";
-
-        char* out_str = (char*) malloc(sizeof(error_str) + sizeof(str) + 1);
-        strcpy(out_str,error_str);
-        strcat(out_str, str);
-        printf(out_str);
-        free(out_str);
-        exit(status);
-    }
-    else {
-        printf("%s status: %d\n", error_str, status);
-    }
-}
 int main() {
     checkStatus(gpioInitialise(), "gpioInitialise");
 
-    int serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
-    checkStatus(serial_handle, "serOpen");
+    mld_t mld;
+    mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
+    checkStatus(mld.serial_handle, "serOpen");
 
-    char out_data[] = "Hello World!\n\r";
-    char in_data[sizeof(out_data)];
-    checkStatus(serWrite(serial_handle, out_data, sizeof(out_data)),"serWrite");
+    mld_msg_u out_msg;
+    out_msg.msg_hex = 0x04000000;
+    out_msg.msg_struct.checksum = mldChecksum(out_msg);
+
+    char in_data[11];
+    mldSendMsg(mld, out_msg);
+    while(!serDataAvailable(mld.serial_handle)) {};
+    mld_msg_u recv_msg = mldRecvMsg(mld);
     
-    while(!serDataAvailable(serial_handle)) {};
-    int num = 0;
-    while (num < sizeof(out_data)) {
-        printf("%d %s\n", num, in_data);
-        num += serRead(serial_handle,in_data+num,sizeof(out_data) - num);
+    char rec_checksum = mldChecksum(recv_msg);
+    if (rec_checksum != recv_msg.msg_struct.checksum) {
+        printf("RECEIVED MESSAGE CHECKSUM ERROR\n");
     }
-    printf("%s\n", in_data);
-    serClose(serial_handle);
+    else {
+        printf("recv_msg=%llX",recv_msg.msg_hex);
+    }
+
+    serClose(mld.serial_handle);
     gpioTerminate();
     return 0;
 }

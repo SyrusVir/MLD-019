@@ -31,7 +31,7 @@ void checkStatus(int status, char* error_str);
 //Sending/Receiving commands
 int mldSendMsg(mld_t mld, mld_msg_u msg);
 mld_msg_u mldRecvMsg(mld_t mld);
-
+char mldChecksum(mld_msg_u msg);
 //Converting messages to/from string
 char* mldMsgToString(char* buff, mld_msg_u msg);    //Convert hex number to MLD command string
 mld_msg_u mldStringToMsg(char* str);
