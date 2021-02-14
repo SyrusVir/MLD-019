@@ -36,7 +36,10 @@ int main() {
     msg.msg_struct.datum3 = 0x00;
     //msg.msg_struct.checksum = 0x04;
     msg = mldChecksum(msg);
-    //printf("%010llX\n", msg.msg_hex);
+    printf("%010llX\n", msg.msg_hex);
+    
+    
+    //using string to hex
     char hex_str[] = "04FFFF0004\r";
     mld_msg_u msg1;
     msg1.msg_hex = strtoll(hex_str,NULL,16);
@@ -46,5 +49,9 @@ int main() {
     printf("%hhX\n", msg.msg_struct.datum1);
     printf("%hhX\n", msg.msg_struct.header);
 
+
+    for (int i = 0; i < 5; i++) {
+        printf("%hhX ", msg.msg_arr[i]);
+    }
     return 0;
 }

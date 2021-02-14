@@ -1,8 +1,9 @@
-//#include <pigpio.h>
+//#include "pigpio.h"
+#include <stdint-gcc.h>
 
 typedef enum mld_mode {
-    MLD_HARDWARE,
-    MLD_SOFTWARE
+    MLD_MODE_HARDWARE,
+    MLD_MODE_SOFTWARE
 } mld_mode_t;
 
 typedef struct MldDriver {
@@ -22,11 +23,11 @@ typedef struct MldMessage {
 typedef union MldMessageUnion
 {
     mld_msg_t msg_struct;
-    char msg_arr[5];
-    long long msg_hex: 40;
+    char msg_arr[5];    //msg_arr[0] = LSB
+    uint64_t msg_hex: 40;
 } mld_msg_u;
 
-
+void checkStatus(int status, char* error_str);
 //Sending/Receiving commands
 int mldSendMsg(mld_t mld, mld_msg_u msg);
 mld_msg_u mldRecvMsg(mld_t mld);
@@ -35,9 +36,9 @@ mld_msg_u mldRecvMsg(mld_t mld);
 char* mldMsgToString(char* buff, mld_msg_u msg);    //Convert hex number to MLD command string
 mld_msg_u mldStringToMsg(char* str);
 
-/**
-mldLinkControl
 
+uint8_t mldLinkControl(mld_t mld);
+/**
 mldReadRTC
 
 mldCaseTemp
