@@ -9,11 +9,10 @@
 
 
 int main(int argc, char** argv) {
-    checkStatus(gpioInitialise(), "gpioInitialise");
+    gpioInitialise();
 
     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
-    checkStatus(mld.serial_handle, "serOpen");
 
     uint64_t hex_num = 0xA6239F57AA;
     if (argc > 1) {

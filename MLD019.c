@@ -8,26 +8,6 @@
 #define MSG_BYTES 6 //5-byte command + carriage return
 #define BAUD 9600   //baud rate defined b MLD-019 datasheet
 
-void checkStatus(int status, char* error_str) {
-    /** Utility function used to check return values of functions and printing error messages
-     *  if any occur **/
-    
-    if (status < 0) {
-        
-        char str[] = " Error %d\n";
-
-        char* out_str = (char*) malloc(sizeof(error_str) + sizeof(str) + 1);
-        strcpy(out_str,error_str);
-        strcat(out_str, str);
-        printf("%s",out_str);
-        free(out_str);
-        exit(status);
-    }
-    else {
-        printf("%s status: %d\n", error_str, status);
-    }
-}
-
 void printMsgStruct(mld_msg_u msg) {
     printf("%hhX ",msg.msg_struct.header);
     printf("%hhX ",msg.msg_struct.datum1);
@@ -66,7 +46,7 @@ int64_t mldValidateMsg(mld_msg_u msg) {
         if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
             return msg.msg_num_s;   //return signed error code if so
         }
-        else return -147; //otherwise, no serial errors and simple checksum test failure, return -1;
+        else return -147; //otherwise, no serial errors and simple checksum test failure, return -147 (unused by pigpio);
     }
     else if (msg.msg_struct.header == 0xE0) {   //if error occurred driver-side, return error code
         return msg.msg_struct.datum1;
@@ -149,7 +129,6 @@ mld_msg_u mldRecvMsg(mld_t mld) {
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
-            checkStatus(num_bytes, "mldRecvMsg::serRead");
             recv_msg.msg_num_u = num_bytes;
             return recv_msg;
         }
@@ -186,10 +165,8 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
 
     //send message
     int send_status = mldSendMsg(mld, send_msg);
-    send_status = -2;
     if (send_status < 0) {
         //if error occurs on write, recv_msg contains resulting error code
-        //checkStatus(send_status,"mldTransmitCMD::mldSendMsg");
         recv_msg.msg_num_u = send_status;
     }
     else {
@@ -228,7 +205,6 @@ mld_t mldInit(char* sertty) {
 
 int mldClose(mld_t mld){
     int close_status = serClose(mld.serial_handle);
-    checkStatus(close_status, "mldClose");
     return close_status;
 }
 
@@ -264,15 +240,131 @@ int64_t mldReadRTC(mld_t mld){
     return rtc; 
 }
 
-int32_t mldCaseTemp(mld_t mld) {
+float mldCaseTemp(mld_t mld) {
     /** Returns the temperature of the laser head.
      *  Case temperature = [Datum1][Datum2]/100 C **/
 
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10050000);
+    uint16_t temp = 0;  //unsure if return value is always unsigned
 
-    if (mldValidateMsg(recv_msg) != 0) return -1;
+    temp = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
+    return temp/100.0;
+}
 
+float mldVLD(mld_t mld){
+    uint16_t voltage;
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A00000);
+    voltage = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
+    
+    return voltage/100.0;
+}
+
+char mldStatus(mld_t mld) {
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x100C0000);
+    return recv_msg.msg_struct.datum2;
+}
+
+uint32_t mldFirmware(mld_t mld) {
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x101A0000);
+    return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
+}
+
+float mldBoardTemp(mld_t mld){
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10180000);
+    uint16_t temp = 0;  //unsure if return value is always unsigned
+
+    temp = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
+    
+    return temp/100.0;
+}
+
+uint16_t mldDIMonitor(mld_t mld) {
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10100000);
+    return (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
+
+}
+uint32_t mldSerialNum(mld_t mld) {
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A10000);
+    return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
+}
+
+mldCheckConfig(mld_t mld) {
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x300C10032F);
+    //need to verify return message, confusing documentatoin
 
 }
 
+mldHWConfig(mld_t mld) {
+    static const uint64_t commands[] = {
+        0x310C10022F,
+        0x3200004270,
+        0x310C14022B,
+        0x320000182A
+    };
 
+    mld_msg_u send_msg;
+    for (int i = 0; i < 4; i++) {
+        send_msg.msg_num_u = commands[i];
+        send_msg.msg_struct.checksum = mldChecksum(send_msg);
+        mldSendMsg(mld, send_msg);
+    }
+
+    //verify configuration
+    mldCheckConfig(mld);
+}
+
+mldSWConfig(mld_t mld) {
+    static const uint64_t commands[] = {
+        0x310C14022B,
+        0x3200000032,
+        0x310C10022F,
+        0x3200007240
+    };
+
+    mld_msg_u send_msg;
+    for (int i = 0; i < 4; i++) {
+        send_msg.msg_num_u = commands[i];
+        send_msg.msg_struct.checksum = mldChecksum(send_msg);
+        mldSendMsg(mld, send_msg);
+    }
+
+    //verify configuration
+    mldCheckConfig(mld);
+}
+
+mldTriggerSource(mld_t mld, mld_trig_t trig_src) {
+    switch(trig_src) {
+        case MLD_TRIG_EXTERNAL:
+        case MLD_TRIG_INTERNAL:
+    }
+}
+
+uint16_t mldLaserControl(mld_t mld, mld_controls_t cntrl) {
+    static const uint64_t commands [4][2] = {
+        {0x3101000131, 0x3200000133},   //set interlock
+        {0x3101000131, 0x3200000032},   //unset interlock
+        {0x3101000030, 0x3200000133},   //set enable
+        {0x3101000030, 0x3200000032}    //unset enable
+    };
+
+    mld_msg_u send_msg;
+    for (int i = 0; i < 2; i++) {
+        send_msg.msg_num_u = commands[cntrl][i];
+        send_msg.msg_struct.checksum = mldChecksum(send_msg);
+        mldSendMsg(mld, send_msg);
+    } 
+    return mldDIMonitor(mld);
+}
+
+mldSetPRR(mld_t mld, uint16_t period_usec) {
+    mld_msg_u send_msg;
+    send_msg.msg_num_u = 0x310C0E0231;
+    send_msg.msg_struct.checksum = mldChecksum(send_msg);
+    mldSendMsg(mld, send_msg);
+
+    send_msg.msg_num_u = 0x3200000000;
+    send_msg.msg_struct.datum2 = (period_usec & 0xFF00) >> 8;
+    send_msg.msg_struct.datum3 = period_usec & 0x00FF;
+    send_msg.msg_struct.checksum = mldChecksum(send_msg);
+    mldSendMsg(mld, send_msg);
+}

@@ -6,19 +6,11 @@ int main() {
     char buff[11];
     char buff1[11];
     mld_msg_u msg;
-    msg.msg_num_s = -50;
-    /* printf("%lld\n",msg.msg_num_u);
-    printf("%llX\n",msg.msg_num_u);
-    printf("%lld\n",msg.msg_num_s);
-    printf("%llX\n",msg.msg_num_s); */
+    msg.msg_num_s = 0xAABBCCDDEE;
 
-    snprintf(buff,11,"%0*llX\r",10, msg.msg_num_u);   //0-padded, 10-character hex string with carriage return appended (11 total)
-    snprintf(buff1,11,"%0*llX\r",10, msg.msg_num_s & 0xFFFFFFFFFF);   //0-padded, 10-character hex string with carriage return appended (11 total)
-    printf("%s\n",buff);
-    printf("%s\n",buff1);
-    printf("%lld\n",strtoll(buff,NULL,16));
-    printf("%llu\n",strtoll(buff1,NULL,16));
-    printf("%hhX\n", msg.msg_struct.header);
-    printf("%lld\n",mldValidateMsg(msg));
+    uint16_t temp =  (msg.msg_struct.datum2 | msg.msg_struct.datum1 << 8);
+    temp = (msg.msg_num_u & 0x00FFFF0000) >> 16;
+    printf("%hhX %hhX\n", msg.msg_struct.datum1, msg.msg_struct.datum2);
+    printf("%X\n",temp);
     return 0;
 }

@@ -10,6 +10,18 @@ typedef enum mld_mode {
     MLD_MODE_SOFTWARE
 } mld_mode_t;
 
+typedef enum mld_trig {
+    MLD_TRIG_EXTERNAL,
+    MLD_TRIG_INTERNAL
+} mld_trig_t;
+
+typedef enum mld_controls {
+    MLD_SET_INTERLOCK,
+    MLD_UNSET_INTERLOCK,
+    MLD_SET_ENABLE,
+    MLD_UNSET_ENABLE
+} mld_controls_t;
+
 typedef struct MldDriver {
     mld_mode_t mode;
     int serial_handle;
@@ -32,8 +44,6 @@ typedef union MldMessageUnion
     int64_t msg_num_s: 40;
 } mld_msg_u;
 
-//prints [status]. Prints [error_str] if [status] < 0
-void checkStatus(int status, char* error_str);
 void printMsgStruct(mld_msg_u msg);
 int mldSendMsg(mld_t mld, mld_msg_u msg);
 mld_msg_u mldRecvMsg(mld_t mld);
