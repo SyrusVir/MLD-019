@@ -62,11 +62,11 @@ int64_t mldValidateMsg(mld_msg_u msg) {
      *                        communication protocol
     **/
 
-    if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test, return -1
-        if (msg.msg_struct.header == 0xFF) { //if error occured in pigpio serial routines, return error code
-            return msg.msg_num;
+    if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test...
+        if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
+            return msg.msg_num_s;   //return signed error code if so
         }
-        else return -1;
+        else return -147; //otherwise, no serial errors and simple checksum test failure, return -1;
     }
     else if (msg.msg_struct.header == 0xE0) {   //if error occurred driver-side, return error code
         return msg.msg_struct.datum1;
@@ -77,17 +77,25 @@ int64_t mldValidateMsg(mld_msg_u msg) {
 } //end mldValidateMsg()
 
 char* mldMsgToString(char* buff, mld_msg_u msg) {
-    /** Convert the hex command code contained in [msg] 
+    /** Parameters: char* buff - allocated buffer in which to place output
+     *              mld_msg_u msg - message structure whose data will be 
+     *                              converted into string form
+     *  Return: char* buff - returns the same pointer passed in [buff]
+     * 
+     *  Description: Convert the hex command code contained in [msg] 
      *  into a string, appending a carriage return
      * 
      *  Command hex codes are 5 bytes long, transmitted as a 
-     *  string of hex characters followed by a carriage return.
+     *  string of hex characters followed by a carriage return,
+     *  totaling 11 bytes. Only the lower 5 bytes of the numeric
+     *  representation of [msg] is used. This avoids excess 'F' hex
+     *  characters if [msg] represents a negative number
      * 
      *  Resulting stirng is placed in [buff]. The pointer to [buff]
      *  is also returned.
      *  **/
     
-    sprintf(buff,"%0*llX\r",10, msg.msg_num);   //0-padded, 10-character hex string with carriage return appended (11 total)
+    snprintf(buff,11,"%0*llX\r",10, msg.msg_num_u & 0xFFFFFFFFFF);   //0-padded, 10-character hex string with carriage return appended (11 total)
 
     return buff;
 }   //end mldMsgToString()
@@ -102,7 +110,7 @@ mld_msg_u mldStringToMsg(char* str) {
      **/
 
     mld_msg_u msg;
-    msg.msg_num = strtoll(str,NULL,16);
+    msg.msg_num_u = strtoll(str,NULL,16);
     return msg;
 }   //end mldStringToMsg()
 
@@ -115,6 +123,7 @@ int mldSendMsg(mld_t mld, mld_msg_u msg) {
     char out_buff[11];
     msg.msg_struct.checksum = mldChecksum(msg);
     mldMsgToString(out_buff, msg);
+    printf("out_buff=%s\n",out_buff);
     return serWrite(mld.serial_handle,out_buff, 11);
 }   //end mldSendMsg
 
@@ -141,7 +150,7 @@ mld_msg_u mldRecvMsg(mld_t mld) {
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
             checkStatus(num_bytes, "mldRecvMsg::serRead");
-            recv_msg.msg_num = num_bytes;
+            recv_msg.msg_num_u = num_bytes;
             return recv_msg;
         }
         else {
@@ -170,17 +179,18 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     mld_msg_u recv_msg;
 
     //build command message
-    send_msg.msg_num = hex_cmd;
+    send_msg.msg_num_u = hex_cmd;
     send_msg.msg_struct.checksum = mldChecksum(send_msg);
     printf("outgoing= ");
     printMsgStruct(send_msg);
 
     //send message
     int send_status = mldSendMsg(mld, send_msg);
+    send_status = -2;
     if (send_status < 0) {
         //if error occurs on write, recv_msg contains resulting error code
-        checkStatus(send_status,"mldTransmitCMD::mldSendMsg");
-        recv_msg.msg_num = send_status;
+        //checkStatus(send_status,"mldTransmitCMD::mldSendMsg");
+        recv_msg.msg_num_u = send_status;
     }
     else {
         //receive message; if error occurs on read, recv_msg contains resulting error code
@@ -242,7 +252,7 @@ int64_t mldReadRTC(mld_t mld){
     **/
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x0C00010000);
 
-    if (mldValidateMsg(recv_msg) != 0) return recv_msg.msg_num;
+    if (mldValidateMsg(recv_msg) != 0) return recv_msg.msg_num_u;
 
     //extracting RTC
     uint32_t rtc = 0;

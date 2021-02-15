@@ -21,9 +21,9 @@ int main(int argc, char** argv) {
     }
 
     mld_msg_u recv_msg = mldExecuteCMD(mld,hex_num);
-    
+
     if (mldValidateMsg(recv_msg) != 0) {
-        printf("RECEIVED MESSAGE CHECKSUM ERROR\n");
+        printf("ERROR ");
     }
     
     printf("mldLinkControl=%d\n", mldLinkControl(mld));

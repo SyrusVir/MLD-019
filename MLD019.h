@@ -17,18 +17,19 @@ typedef struct MldDriver {
 } mld_t;
 
 typedef struct MldMessage {
-    char checksum;  //LSB
-    char datum3;
-    char datum2;
-    char datum1;
-    char header;    //MSB
+    uint8_t checksum;  //LSB
+    uint8_t datum3;
+    uint8_t datum2;
+    uint8_t datum1;
+    uint8_t header;    //MSB
 } mld_msg_t;
 
 typedef union MldMessageUnion
 {
     mld_msg_t msg_struct;
     char msg_arr[5];    //msg_arr[0] = LSB
-    uint64_t msg_num: 40;
+    uint64_t msg_num_u: 40;
+    int64_t msg_num_s: 40;
 } mld_msg_u;
 
 //prints [status]. Prints [error_str] if [status] < 0
