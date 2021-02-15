@@ -28,12 +28,21 @@ void checkStatus(int status, char* error_str) {
     }
 }
 
+void printMsgStruct(mld_msg_u msg) {
+    printf("%hhX ",msg.msg_struct.header);
+    printf("%hhX ",msg.msg_struct.datum1);
+    printf("%hhX ",msg.msg_struct.datum2);
+    printf("%hhX ",msg.msg_struct.datum3);
+    printf("%hhX\n",msg.msg_struct.checksum);
+    return;
+}
+
 char mldChecksum(mld_msg_u msg){
     /**Parameteres: mld_msg_u msg - an MLD019 message union representation
      * Return:      char checksum - checksum
      * 
      * Description: Using the struct representation, calculate the checksum as the
-     *              XOR of the uppre 4-bytes (header and data). 
+     *              XOR of the upper 4-bytes (header and data). 
      * **/
 
     char checksum = 0x0;
@@ -44,6 +53,28 @@ char mldChecksum(mld_msg_u msg){
 
     return checksum;
 }   //end mldChecksum
+
+int64_t mldValidateMsg(mld_msg_u msg) {
+    /** Parameters: mld_msg_u msg - an MLD019 message union containing a received message
+     *  Return:     int16_t - 0 if msg is valid and no errors. -1 if checksum test of the 
+     *                        received message failed. Non-zero return value describes 
+     *                        8-bit driver error code according to pg. 27 of MLD-019 Serial 
+     *                        communication protocol
+    **/
+
+    if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test, return -1
+        if (msg.msg_struct.header == 0xFF) { //if error occured in pigpio serial routines, return error code
+            return msg.msg_num;
+        }
+        else return -1;
+    }
+    else if (msg.msg_struct.header == 0xE0) {   //if error occurred driver-side, return error code
+        return msg.msg_struct.datum1;
+    }
+    else {  //no errors occured
+        return 0;
+    }
+} //end mldValidateMsg()
 
 char* mldMsgToString(char* buff, mld_msg_u msg) {
     /** Convert the hex command code contained in [msg] 
@@ -56,87 +87,182 @@ char* mldMsgToString(char* buff, mld_msg_u msg) {
      *  is also returned.
      *  **/
     
-    sprintf(buff,"%0*llX\r",10, msg.msg_hex);   //0-padded, 10-character hex string with carriage return appended (11 total)
+    sprintf(buff,"%0*llX\r",10, msg.msg_num);   //0-padded, 10-character hex string with carriage return appended (11 total)
 
     return buff;
 }   //end mldMsgToString()
 
 mld_msg_u mldStringToMsg(char* str) {
+    /** Parameters: char* str - a string of hexadecimal characters
+     *  Return:     mld_msg_u msg - an MLD019 message union containing the hexadecimal number 
+     *                              represented by [str]
+     * Description: Uses the strtoll function to convert a string of hexadecimal characters into 
+     *              a 64-bit number. This number is used to create an mld_msg_u union, which
+     *              uses the lower 40 bits. 
+     **/
+
     mld_msg_u msg;
-    msg.msg_hex = strtoll(str,NULL,16);
+    msg.msg_num = strtoll(str,NULL,16);
     return msg;
 }   //end mldStringToMsg()
 
-/**
-mld_t mldInit(char* sertty, int baud) {
-    mld_t mld;
-    mld.serial_handle = serOpen(sertty,baud,0);
+int mldSendMsg(mld_t mld, mld_msg_u msg) {
+    /** Parameters: mld_t mld - a structure describing the current state of the MLD019 driver
+     *              mld_msg_u msg - Union representing hexadecimal code to transmit
+     * Return:      int serWrite() - status of the serWrite() call, which returns 0 if OK,
+     *                               <0 otherwise. 
+    **/
+    char out_buff[11];
+    msg.msg_struct.checksum = mldChecksum(msg);
+    mldMsgToString(out_buff, msg);
+    return serWrite(mld.serial_handle,out_buff, 11);
+}   //end mldSendMsg
+
+mld_msg_u mldRecvMsg(mld_t mld) {
+    /** Parameters: mld_t mld - struct describing MLD019 driver to read from
+     *  Return:     mld_msg_u recv_msg - a message union encpasulating the 5-byte return data or
+     *                                   serial error
+     * 
+     *  Description: Uses the serRead command to read a number of bytes from the serial handle at once
+     *               bytes_read tracks total bytes read from the serial buffer. Also acts as an index
+     *               to recv_buff to prevent overwriting. num_bytes contains bytes read by a serRead()
+     *               call or a serRead pigpio error code (<0). If num_bytes < 0, recv_msg contains 
+     *               num_bytes. Note that pigpio error codes are always negative, thus
+     *               recv_msg.msg_struct.header == 0xFF. This header is not used by any MLD019 command.     
+     **/
+    mld_msg_u recv_msg;
+    char recv_buff[11];
+    int bytes_read = 0;
+    int num_bytes = 0;
+    while (bytes_read < 11) {
+        
+        num_bytes = serRead(mld.serial_handle, recv_buff+bytes_read, 11 - bytes_read);
+
+        if (num_bytes < 0) {
+            //if serial read error occurs, return error code in recv_msg
+            checkStatus(num_bytes, "mldRecvMsg::serRead");
+            recv_msg.msg_num = num_bytes;
+            return recv_msg;
+        }
+        else {
+            bytes_read += num_bytes;
+        }
+    } //end while(bytes_read < 11)
+
+    //if no serial errors encountered, parse received string into a message 
+    recv_msg = mldStringToMsg(recv_buff);
     
+    return recv_msg;
+}
+
+mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
+    /** Parameters: mld_t mld - struct representing MLD-019 driver
+     *              uint64_t - 5-byte number matching a hexadecimal MLD019 command code
+     *  Return:     mld_msg_u recv_msg - return message from MLD019
+     * 
+     *  Description: Utility function for sending commands to and receiving responses from an MLD019 
+     *               laser driver. From [hex_cmd] construct and send a command message. Then read 11 
+     *               bytes from serial and construct the returne message recv_msg. If an error 
+     *               occurs in serial reading or writing, the resulting error code is contained in 
+     *               recv_msg. 
+     **/
+    mld_msg_u send_msg;
+    mld_msg_u recv_msg;
+
+    //build command message
+    send_msg.msg_num = hex_cmd;
+    send_msg.msg_struct.checksum = mldChecksum(send_msg);
+    printf("outgoing= ");
+    printMsgStruct(send_msg);
+
+    //send message
+    int send_status = mldSendMsg(mld, send_msg);
+    if (send_status < 0) {
+        //if error occurs on write, recv_msg contains resulting error code
+        checkStatus(send_status,"mldTransmitCMD::mldSendMsg");
+        recv_msg.msg_num = send_status;
+    }
+    else {
+        //receive message; if error occurs on read, recv_msg contains resulting error code
+        recv_msg = mldRecvMsg(mld);
+    }
+    printf("incoming= ");
+    printMsgStruct(recv_msg);
+
+    return recv_msg;
+}
+
+mld_t mldInit(char* sertty) {
+    /** Parameters: char* sertty - path to the unix file representing the serial module
+     *  Return:     mld_t mld - a struct encapsulating a serial handle to the MLD019 driver
+     *                          and its current operating mode
+     * 
+     * Description: Serial communications with an MLD019 is fixed at 9600 baud, 8n1 configuration.
+     *              After a valid serial handle is obtained, the Link Control command is sent to
+     *              confirm that the driver is responsive. If so, send commands querying the
+     *              laser's current configuration
+    **/
+    mld_t mld;
+    mld_msg_u recv;
+    //obtain serial handle
+    mld.serial_handle = serOpen(sertty,9600,0);
     if (mld.serial_handle < 0) {
         //exit with error if serial connection could not be opened
         printf("CRITICAL Error:\n\t Failed to open serial connection at %s", sertty);
         exit(mld.serial_handle);
     } 
     else {
-        //if serial connection opened, see if laser driver is responsive
-        mldLinkControl(mld);
+        return mld;
     }
 }   //end mldInit
-**/
-/**
+
 int mldClose(mld_t mld){
     int close_status = serClose(mld.serial_handle);
     checkStatus(close_status, "mldClose");
-    return close_status
+    return close_status;
 }
-**/
 
-/**
-int mldSendMsg(mld_t mld, mld_msg_u msg) {
-    /** Given an MLD message type union, prepare for serial transmission by:
-     *  1) calculating the checksum
-     *  2) Converting to string with carriage return appended
-     * 
-     *  Then transmit via serWrite 
+int64_t mldLinkControl(mld_t mld) {
+    /** Parameters: mld_t mld - struct encpasulating state of MLD019 driver
+     *  Return:     bool - If true, MLD019 driver described by [mld] is responding
+     *                     to serial communications **/
 
-    char out_buff[MSG_BYTES*2];
-    msg.msg_struct.checksum = mldChecksum(msg);
-    mldMsgToString(out_buff, msg);
-    return serWrite(mld.serial_handle,out_buff, MSG_BYTES);
-}   //end mldSendMsg
-**/
-/**
-mld_msg_u mldRecvMsg(mld_t mld) {
-    /** Read a return message from the MLD driver described  by [mld].
-     *  Parse the returned string into a mld_msg_u and return 
-    char recv_buff[11];
+    mld_msg_u recv_msg = mldExecuteCMD(mld,0x04000000);
 
-    int num_bytes = serRead(mld.serial_handle, recv_buff, MSG_BYTES);
-    checkStatus(num_bytes, "mldRecvMsg");
-
-    mld_msg_u recv_msg = mldStringToMsg(recv_buff);
-    return recv_msg;
+    return mldValidateMsg(recv_msg);
+    
 }
-**/
 
-/**
-uint8_t mldLinkControl(mld_t mld) {
-    mld_msg_u send_msg;
-    mld_msg_u recv_msg;
+int64_t mldReadRTC(mld_t mld){
+    /** Returns the internal laser aging counter. A 24-bit number equal to seconds since 
+     *  the laser has been armed.
+     *  
+     *  Return: uint32_t rtc = [Datum3][Datum2][Datum1][0x00] seconds if no error has occured
+     *          if error occurs, return error code in recv_msg
+    **/
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x0C00010000);
 
-    send_msg.msg_hex = 0x04000000;                //Link control header = 0x04, rest don't care
-    send_msg.msg_struct.checksum = mldChecksum(send_msg);             //calculate checksum
-    char checksum = send_msg.msg_struct.checksum; //save checksum to check return
+    if (mldValidateMsg(recv_msg) != 0) return recv_msg.msg_num;
 
-    int send_status = mldSendMsg(mld, send_msg);
-    if (send_status < 0) {
-        checkStatus(send_status, "mldSendMsg");
-    }
-    else {
-        recv_msg = mldRecvMsg(mld);
+    //extracting RTC
+    uint32_t rtc = 0;
+    uint32_t msk = 0xFF;
+    rtc |= ((recv_msg.msg_struct.datum1 & msk) << 8); 
+    rtc |= ((recv_msg.msg_struct.datum2 & msk) << 16); 
+    rtc |= ((recv_msg.msg_struct.datum3 & msk) << 24); 
 
-    }
+    return rtc; 
 }
-**/
+
+int32_t mldCaseTemp(mld_t mld) {
+    /** Returns the temperature of the laser head.
+     *  Case temperature = [Datum1][Datum2]/100 C **/
+
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10050000);
+
+    if (mldValidateMsg(recv_msg) != 0) return -1;
+
+
+}
 
 
