@@ -34,25 +34,28 @@ char mldChecksum(mld_msg_u msg){
     return checksum;
 }   //end mldChecksum
 
-int64_t mldValidateMsg(mld_msg_u msg) {
+mld_err_t mldValidateMsg(mld_msg_u msg) {
     /** Parameters: mld_msg_u msg - an MLD019 message union containing a received message
-     *  Return:     int16_t - 0 if msg is valid and no errors. -1 if checksum test of the 
-     *                        received message failed. Non-zero return value describes 
-     *                        8-bit driver error code according to pg. 27 of MLD-019 Serial 
-     *                        communication protocol
+     *  Return:     mld_err_t - returns an enum indicating the present error. 0 if no error occurs.
+     *                          Currently only two vals: 0 for no error, -1 for errors
     **/
 
     if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test...
         if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
-            return msg.msg_num_s;   //return signed error code if so
+            
+            return MLD_ERR;
+            //return msg.msg_num_s & 0xFFFF;   //return least significant word of signed error code if so
         }
-        else return -147; //otherwise, no serial errors and simple checksum test failure, return -147 (unused by pigpio);
+        else {
+            return MLD_ERR;
+            //return -147; //otherwise, no serial errors or simple checksum test failure, return -147 (unused by pigpio);
     }
     else if (msg.msg_struct.header == 0xE0) {   //if error occurred driver-side, return error code
-        return msg.msg_struct.datum1;
+        return MLD_ERR;
+        //return msg.msg_struct.datum1;
     }
     else {  //no errors occured
-        return 0;
+        return MLD_NOERR;
     }
 } //end mldValidateMsg()
 
@@ -208,9 +211,11 @@ int mldClose(mld_t mld){
     return close_status;
 }
 
-int64_t mldLinkControl(mld_t mld) {
+////////////////////////////////////////MLD Available Commands//////////////////////////////////////////////////
+
+int16_t mldLinkControl(mld_t mld) {
     /** Parameters: mld_t mld - struct encpasulating state of MLD019 driver
-     *  Return:     bool - If true, MLD019 driver described by [mld] is responding
+     *  Return:     int16_t - If true, MLD019 driver described by [mld] is responding
      *                     to serial communications **/
 
     mld_msg_u recv_msg = mldExecuteCMD(mld,0x04000000);
@@ -228,8 +233,10 @@ int64_t mldReadRTC(mld_t mld){
     **/
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x0C00010000);
 
-    if (mldValidateMsg(recv_msg) != 0) return recv_msg.msg_num_u;
-
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldReadRTC ERROR\n");
+        return -1;
+    }
     //extracting RTC
     uint32_t rtc = 0;
     uint32_t msk = 0xFF;
@@ -247,6 +254,13 @@ float mldCaseTemp(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10050000);
     uint16_t temp = 0;  //unsure if return value is always unsigned
 
+   
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldCaseTemp ERROR\n");
+        return -1;
+    }
+
+
     temp = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
     return temp/100.0;
 }
@@ -254,24 +268,50 @@ float mldCaseTemp(mld_t mld) {
 float mldVLD(mld_t mld){
     uint16_t voltage;
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A00000);
-    voltage = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
     
+    
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldVLD ERROR\n");
+        return -1;
+    }
+
+    voltage = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
     return voltage/100.0;
+    
 }
 
-char mldStatus(mld_t mld) {
+int16_t mldStatus(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x100C0000);
+
+    
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldStatus ERROR\n");
+        return -1;
+    }
+
     return recv_msg.msg_struct.datum2;
 }
 
 uint32_t mldFirmware(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x101A0000);
+
+    
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldFirmware ERROR\n");
+        return -1;
+    }
+
     return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
 }
 
 float mldBoardTemp(mld_t mld){
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10180000);
     uint16_t temp = 0;  //unsure if return value is always unsigned
+
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldBoardTemp ERROR\n");
+        return -1;
+    }
 
     temp = (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
     
@@ -280,21 +320,37 @@ float mldBoardTemp(mld_t mld){
 
 uint16_t mldDIMonitor(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10100000);
+    
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldDIMonitor ERROR\n");
+        return -1;
+    }
     return (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
 
 }
 uint32_t mldSerialNum(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A10000);
+    
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldSerialNum ERROR\n");
+        return -1;
+    }
+    
     return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
 }
 
-mldCheckConfig(mld_t mld) {
+uint32_t mldCheckConfig(mld_t mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x300C10032F);
     //need to verify return message, confusing documentatoin
+    if(mldValidateMsg(recv_msg) != 0) {
+        printf("mldReadRTC ERROR\n");
+        return -1;
+    }
 
+    return recv_msg.msg_num_u;
 }
 
-mldHWConfig(mld_t mld) {
+uint32_t mldHWConfig(mld_t mld) {
     static const uint64_t commands[] = {
         0x310C10022F,
         0x3200004270,
@@ -310,10 +366,10 @@ mldHWConfig(mld_t mld) {
     }
 
     //verify configuration
-    mldCheckConfig(mld);
+    return mldCheckConfig(mld);
 }
 
-mldSWConfig(mld_t mld) {
+uint32_t mldSWConfig(mld_t mld) {
     static const uint64_t commands[] = {
         0x310C14022B,
         0x3200000032,
@@ -329,15 +385,17 @@ mldSWConfig(mld_t mld) {
     }
 
     //verify configuration
-    mldCheckConfig(mld);
+    return mldCheckConfig(mld);
 }
 
-mldTriggerSource(mld_t mld, mld_trig_t trig_src) {
+/*
+void mldTriggerSource(mld_t mld, mld_trig_t trig_src) {
     switch(trig_src) {
         case MLD_TRIG_EXTERNAL:
         case MLD_TRIG_INTERNAL:
     }
 }
+*/
 
 uint16_t mldLaserControl(mld_t mld, mld_controls_t cntrl) {
     static const uint64_t commands [4][2] = {
@@ -356,7 +414,7 @@ uint16_t mldLaserControl(mld_t mld, mld_controls_t cntrl) {
     return mldDIMonitor(mld);
 }
 
-mldSetPRR(mld_t mld, uint16_t period_usec) {
+void mldSetPRR(mld_t mld, uint16_t period_usec) {
     mld_msg_u send_msg;
     send_msg.msg_num_u = 0x310C0E0231;
     send_msg.msg_struct.checksum = mldChecksum(send_msg);

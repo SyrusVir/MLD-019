@@ -22,6 +22,11 @@ typedef enum mld_controls {
     MLD_UNSET_ENABLE
 } mld_controls_t;
 
+typedef enum MldError {
+    MLD_NOERR = -1,
+    MLD_ERR = 0
+} mld_err_t;
+
 typedef struct MldDriver {
     mld_mode_t mode;
     int serial_handle;
@@ -51,8 +56,10 @@ mld_msg_u mldRecvMsg(mld_t mld);
 //Calculates checksum as XOR of upper 4-bytes of [msg]
 char mldChecksum(mld_msg_u msg);
 
-//Checks msg for any errors. Returns 0 if none occured
-int64_t mldValidateMsg(mld_msg_u msg);
+//Checks msg for any errors. Returns 0 if none occured.
+//Otherwise contains either a (negative) pigpio error code 
+//or an MLD019 error byte
+mld_err_t mldValidateMsg(mld_msg_u msg);
 
 //Converting messages to hexadecimal string
 char* mldMsgToString(char* buff, mld_msg_u msg); 
@@ -63,7 +70,7 @@ mld_msg_u mldStringToMsg(char* str);
 //Utility function that sends a message containing [hex_cmd], returning the response.
 mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd);
 
-int64_t mldLinkControl(mld_t mld);
+int16_t mldLinkControl(mld_t mld);
 /**
 mldReadRTC
 
