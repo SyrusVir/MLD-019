@@ -14,18 +14,15 @@ int main(int argc, char** argv) {
     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
-    uint64_t hex_num = 0xA6239F57AA;
-    if (argc > 1) {
-        hex_num = strtoll(argv[1],NULL,16);
-    }
+    do {
+        char c;
+        
+        printf("\'c\' to exit | any other char to execute mldLinkControl\n");
+        scanf("%c",&c);
+        printf("mldLinkControl=%d\n", mldLinkControl(mld));
 
-    mld_msg_u recv_msg = mldExecuteCMD(mld,hex_num);
+    } while (c != 'c');
 
-    if (mldValidateMsg(recv_msg) != 0) {
-        printf("ERROR ");
-    }
-    
-    printf("mldLinkControl=%d\n", mldLinkControl(mld));
     serClose(mld.serial_handle);
     gpioTerminate();
     return 0;
