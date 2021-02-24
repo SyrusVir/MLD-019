@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "MLD019.h"
 #include "MLD019.c"
 #include <assert.h>
 #include <curses.h>
@@ -12,9 +11,21 @@
 #define SERIAL_TERM "/dev/ttyAMA0" //target PL011 UART module
 #define BAUD 9600
 
+#define PULSE_PIN
+#define SHUTTER_PIN
+#define ENABLE_PIN
+
+#define WARM_UP_SEC 5
+#define LASE_SEC 30
+#define COOL_DOWN_SEC 15
+
+
 typedef enum states {
     WAIT,
-    ACTIVE,
+    START,
+    WARM_UP,
+    LASE,
+    COOL_DOWN,
     QUIT
 } states_t;
 
@@ -51,32 +62,51 @@ int main(int argc, char** argv)
 
     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
+    state_t state;
+    if (mldLinkControl(mld) != 0) {
+        //terminate if error communicating with driver
+        print("ERROR with driver communications\n")
+        state = QUIT;
+    }
+    else { 
+        if (mldHWConfig(mld < -1) {
+            print("ERROR Configuring Driver for HW control")
+            state = QUIT;
+        }
+        printf("\"s\" to start\t \"q\" to stop\n\r");
+        state = WAIT;
+    }
 
-    printf("\"s\" to start\t \"q\" to stop\n\r");
-    state_t state = WAIT;
-
-    do {
+    float curr_sec;
+    while (state != QUIT) {
         char ch;
         ch = getch();
+        if (toUpper(ch) == 'Q') state = QUIT;
 
         switch (state) 
         {
             case WAIT:
                 if (toUpper(ch) == 'S') {
-                    state = ACTIVE;
+                    state = WARM_UP;
                 }
             break;
 
-            case ACTIVE:
-                assert(mldLinkControl(mld) != 0);
-                float start_sec = gpioTick() / 1000000.0;
-                mldC
+            case WARM_UP:
+                float warm_up_start_sec = gpioTick() / 1000000.0;
+                curr_sec = warm_up_start_sec;
+                while (curr_sec < (warm_up_start_sec + 5)) {
 
-            break;
+                }
+
+                state = LASE;
+               
+
+                break;
+            case QUIT:
+                break;
         }
         
-    } while (state != QUIT);
-
+    } //end while(state != QUIT)
 
     serClose(mld.serial_handle);
     fclose(f);
