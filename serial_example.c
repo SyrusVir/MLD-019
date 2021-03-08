@@ -14,9 +14,9 @@ int main(int argc, char** argv) {
     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
-    do {
-        char c;
-        
+    char c;
+    do 
+    {    
         printf("\'c\' to exit | any other char to execute mldLinkControl\n");
         scanf("%c",&c);
         printf("mldLinkControl=%d\n", mldLinkControl(mld));

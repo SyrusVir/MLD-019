@@ -49,6 +49,7 @@ mld_err_t mldValidateMsg(mld_msg_u msg) {
         else {
             return MLD_ERR;
             //return -147; //otherwise, no serial errors or simple checksum test failure, return -147 (unused by pigpio);
+        }
     }
     else if (msg.msg_struct.header == 0xE0) {   //if error occurred driver-side, return error code
         return MLD_ERR;
@@ -128,10 +129,12 @@ mld_msg_u mldRecvMsg(mld_t mld) {
     int num_bytes = 0;
     while (bytes_read < 11) {
         
+        printf("bytes_read=%d\n",bytes_read);
         num_bytes = serRead(mld.serial_handle, recv_buff+bytes_read, 11 - bytes_read);
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
+            printf("num_bytes<0\n");
             recv_msg.msg_num_u = num_bytes;
             return recv_msg;
         }
