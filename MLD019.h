@@ -23,8 +23,8 @@ typedef enum mld_controls {
 } mld_controls_t;
 
 typedef enum MldError {
-    MLD_NOERR = -1,
-    MLD_ERR = 0
+    MLD_NOERR = 0,
+    MLD_ERR = -1
 } mld_err_t;
 
 typedef struct MldDriver {

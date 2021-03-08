@@ -3,14 +3,22 @@
 #include <stdlib.h>
 
 int main() {
-    char buff[11];
-    char buff1[11];
+    char buff[10];
+    //char buff1[11];
     mld_msg_u msg;
-    msg.msg_num_s = 0xAABBCCDDEE;
+    msg.msg_num_s = 0x04FFFF0000;
+    msg.msg_struct.checksum = mldChecksum(msg);
+    printMsgStruct(msg);
+    mldMsgToString(buff,msg);
+    printf("%s\n",buff);
+    for (int i=0; i< 11; i++) {
+        printf("%X ",buff[i]);
+    }
 
-    uint16_t temp =  (msg.msg_struct.datum2 | msg.msg_struct.datum1 << 8);
-    temp = (msg.msg_num_u & 0x00FFFF0000) >> 16;
-    printf("%hhX %hhX\n", msg.msg_struct.datum1, msg.msg_struct.datum2);
-    printf("%X\n",temp);
+    char buff1[11] = {'a','a','b','b','c','c','e','e','d','d'};
+    mld_msg_u msg2 = mldStringToMsg(buff1);
+    printf("\n%llX\n",msg2.msg_num_u);
+
+    
     return 0;
 }

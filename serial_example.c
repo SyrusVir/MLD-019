@@ -20,7 +20,6 @@ int main(int argc, char** argv) {
         printf("\'c\' to exit | any other char to execute mldLinkControl\n");
         scanf("%c",&c);
         printf("mldLinkControl=%d\n", mldLinkControl(mld));
-
     } while (c != 'c');
 
     serClose(mld.serial_handle);

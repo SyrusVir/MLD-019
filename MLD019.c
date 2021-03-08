@@ -39,6 +39,7 @@ mld_err_t mldValidateMsg(mld_msg_u msg) {
      *  Return:     mld_err_t - returns an enum indicating the present error. 0 if no error occurs.
      *                          Currently only two vals: 0 for no error, -1 for errors
     **/
+    printf("rec_sum=%hhX\tcalc_sum=%hhX\n",msg.msg_struct.checksum, mldChecksum(msg));
 
     if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test...
         if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
@@ -79,7 +80,8 @@ char* mldMsgToString(char* buff, mld_msg_u msg) {
      *  is also returned.
      *  **/
     
-    snprintf(buff,11,"%0*llX\r",10, msg.msg_num_u & 0xFFFFFFFFFF);   //0-padded, 10-character hex string with carriage return appended (11 total)
+    //0-padded, 10-character hex string + carriage return + NULL = 12 bytes
+    snprintf(buff,12,"%0*llX\r",10, msg.msg_num_u & 0xFFFFFFFFFF);   
 
     return buff;
 }   //end mldMsgToString()
@@ -104,7 +106,7 @@ int mldSendMsg(mld_t mld, mld_msg_u msg) {
      * Return:      int serWrite() - status of the serWrite() call, which returns 0 if OK,
      *                               <0 otherwise. 
     **/
-    char out_buff[11];
+    char out_buff[12];  //1 byte header + 3 bytes data + 1 byte checksum + carriage return + NUll
     msg.msg_struct.checksum = mldChecksum(msg);
     mldMsgToString(out_buff, msg);
     printf("out_buff=%s\n",out_buff);
@@ -124,25 +126,25 @@ mld_msg_u mldRecvMsg(mld_t mld) {
      *               recv_msg.msg_struct.header == 0xFF. This header is not used by any MLD019 command.     
      **/
     mld_msg_u recv_msg;
-    char recv_buff[11];
+    char recv_buff[11]; //1 byte header + 3 bytes data + 1 byte checksum + carriage return
     int bytes_read = 0;
     int num_bytes = 0;
     while (bytes_read < 11) {
         
-        printf("bytes_read=%d\n",bytes_read);
+        //printf("bytes_read=%d\n",bytes_read);
         num_bytes = serRead(mld.serial_handle, recv_buff+bytes_read, 11 - bytes_read);
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
-            printf("num_bytes<0\n");
-            recv_msg.msg_num_u = num_bytes;
+            //printf("num_bytes<0\n");
+            recv_msg.msg_num_s = num_bytes;
             return recv_msg;
         }
         else {
             bytes_read += num_bytes;
         }
     } //end while(bytes_read < 11)
-
+    printf("in_buff=%s\n", recv_buff);
     //if no serial errors encountered, parse received string into a message 
     recv_msg = mldStringToMsg(recv_buff);
     
@@ -169,8 +171,15 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     printf("outgoing= ");
     printMsgStruct(send_msg);
 
+    //clear Serial RX buffer
+    while (serDataAvailable(mld.serial_handle) > 0) {
+        //if no data error returned, break from loop early
+        if(serReadByte(mld.serial_handle) == PI_SER_READ_NO_DATA) break;
+    }
+
     //send message
     int send_status = mldSendMsg(mld, send_msg);
+    printf("send_status=%d\n",send_status);
     if (send_status < 0) {
         //if error occurs on write, recv_msg contains resulting error code
         recv_msg.msg_num_u = send_status;
@@ -221,7 +230,7 @@ int16_t mldLinkControl(mld_t mld) {
      *  Return:     int16_t - If true, MLD019 driver described by [mld] is responding
      *                     to serial communications **/
 
-    mld_msg_u recv_msg = mldExecuteCMD(mld,0x04000000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld,0x04FFFF0000);
 
     return mldValidateMsg(recv_msg);
     
