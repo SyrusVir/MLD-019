@@ -1,3 +1,5 @@
+/*NOTE: Hex argument to mldExecuteCMD must be at least 5 bytes long*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint-gcc.h>
@@ -180,11 +182,16 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     //send message
     int send_status = mldSendMsg(mld, send_msg);
     printf("send_status=%d\n",send_status);
+
     if (send_status < 0) {
         //if error occurs on write, recv_msg contains resulting error code
         recv_msg.msg_num_u = send_status;
     }
     else {
+        //otherwise msg successflly transmitted; wait for return data
+        while(serDataAvailable(mld.serial_handle) < 11) {
+            gpioDelay(50);
+        }
         //receive message; if error occurs on read, recv_msg contains resulting error code
         recv_msg = mldRecvMsg(mld);
     }
@@ -263,7 +270,7 @@ float mldCaseTemp(mld_t mld) {
     /** Returns the temperature of the laser head.
      *  Case temperature = [Datum1][Datum2]/100 C **/
 
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10050000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x1005000000);
     uint16_t temp = 0;  //unsure if return value is always unsigned
 
    
@@ -279,7 +286,7 @@ float mldCaseTemp(mld_t mld) {
 
 float mldVLD(mld_t mld){
     uint16_t voltage;
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A00000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A0000000);
     
     
     if(mldValidateMsg(recv_msg) != 0) {
@@ -293,7 +300,7 @@ float mldVLD(mld_t mld){
 }
 
 int16_t mldStatus(mld_t mld) {
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x100C0000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x100C000000);
 
     
     if(mldValidateMsg(recv_msg) != 0) {
@@ -305,7 +312,7 @@ int16_t mldStatus(mld_t mld) {
 }
 
 uint32_t mldFirmware(mld_t mld) {
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x101A0000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x101A000000);
 
     
     if(mldValidateMsg(recv_msg) != 0) {
@@ -313,11 +320,13 @@ uint32_t mldFirmware(mld_t mld) {
         return -1;
     }
 
+    //TODO: Fix return; firmware version returned as hex characters, not decimal
+    //      Fix by converting the data bytes into a string and then into a decimal number
     return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
 }
 
 float mldBoardTemp(mld_t mld){
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10180000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x1018000000);
     uint16_t temp = 0;  //unsure if return value is always unsigned
 
     if(mldValidateMsg(recv_msg) != 0) {
@@ -331,7 +340,7 @@ float mldBoardTemp(mld_t mld){
 }
 
 uint16_t mldDIMonitor(mld_t mld) {
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10100000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x1010000000);
     
     if(mldValidateMsg(recv_msg) != 0) {
         printf("mldDIMonitor ERROR\n");
@@ -341,7 +350,7 @@ uint16_t mldDIMonitor(mld_t mld) {
 
 }
 uint32_t mldSerialNum(mld_t mld) {
-    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A10000);
+    mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A1000000);
     
     if(mldValidateMsg(recv_msg) != 0) {
         printf("mldSerialNum ERROR\n");

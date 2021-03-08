@@ -9,7 +9,7 @@ int64_t cast(uint64_t num){
 int main() {
     //initializing using struct
     mld_msg_u msg;
-    int64_t hex_num = -133;
+    int64_t hex_num = 0xaabbccdd;
     
     msg.msg_num_u = hex_num;
     for (int i = 0; i < 5; i++) {

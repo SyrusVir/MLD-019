@@ -71,16 +71,21 @@ mld_msg_u mldStringToMsg(char* str);
 mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd);
 
 int16_t mldLinkControl(mld_t mld);
+
+int64_t mldReadRTC(mld_t mld);
+
+float mldCaseTemp (mld_t mld);
+
+float mldVLD(mld_t mld);
+
+int16_t mldStatus(mld_t mld);
+
+uint32_t mldFirmware(mld_t mld);
+
+float mldBoardTemp(mld_t mld);
+
+uint32_t mldCheckConfig(mld_t mld);
 /**
-mldReadRTC
-
-mldCaseTemp
-
-mldVLD
-
-mldStatus
-
-mldBoardTemp
 
 mldDigitalInputMonitor
 
