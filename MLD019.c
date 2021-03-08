@@ -9,7 +9,7 @@
 #define SERIAL_TTY "/dev/ttyAMA0"
 #define MSG_BYTES 6 //5-byte command + carriage return
 #define BAUD 9600   //baud rate defined b MLD-019 datasheet
-
+#define SERIAL_TIMEOUT_SEC 3
 void printMsgStruct(mld_msg_u msg) {
     printf("%hhX ",msg.msg_struct.header);
     printf("%hhX ",msg.msg_struct.datum1);
@@ -189,11 +189,26 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     }
     else {
         //otherwise msg successflly transmitted; wait for return data
+        int curr_sec;
+        int stop_sec;
+        int usec;
+        gpioTime(PI_TIME_RELATIVE, &curr_sec, &usec);
+        stop_sec = curr_sec + SERIAL_TIMEOUT_SEC;
         while(serDataAvailable(mld.serial_handle) < 11) {
-            gpioDelay(50);
+            gpioTime(PI_TIME_RELATIVE,&curr_sec, &usec);
+            if (curr_sec >= stop_sec) {
+                break;
+            }
         }
-        //receive message; if error occurs on read, recv_msg contains resulting error code
-        recv_msg = mldRecvMsg(mld);
+
+        if (curr_sec < stop_sec) {
+            //receive message; if error occurs on read, recv_msg contains resulting error code
+            recv_msg = mldRecvMsg(mld);
+        }
+        else {
+            printf("SERIAL TIMEOUT");
+            recv_msg = mldStringToMsg("0xffffffffff");
+        }
     }
     printf("incoming= ");
     printMsgStruct(recv_msg);
