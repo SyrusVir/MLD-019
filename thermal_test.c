@@ -22,7 +22,7 @@ typedef enum states {
     QUIT
 } states_t;
 
-char [8][3]
+char state_str[8][3] = {"WARMUP", "LASE", "COOL"};
 
 void getTimestampedFilePath(char* str_result, size_t str_size) 
 {	/**
@@ -49,11 +49,6 @@ float getEpochTime()
 
     return (float) sec + (usec / 1000000.0);
 } //end getEpochTime()
-
-int writeTemps(mld_t mld, int f)
-{
-
-} //end writeTemps()
 
 int main(int argc, char** argv) 
 {
@@ -94,7 +89,7 @@ int main(int argc, char** argv)
     }
     
     char c;
-    state = WAIT;
+    states_t test_state = WAIT;
     do
     {
         printf("Enter \'S\' to start...\n\r");
@@ -107,38 +102,41 @@ int main(int argc, char** argv)
     float lase_end_time = warmup_end_time + lasing_sec;
     float cool_end_time = lase_end_time + cool_sec;
     float curr_time;
-    while (getch() != ' ' && getch() != 'q')
+    while (getch() != 'q')
     {
         curr_time = getEpochTime(); 
         if (curr_time < warmup_end_time) {}
-        else if (warm_end_time < curr_time && curr_time < lase_end_time)
+        else if (warmup_end_time < curr_time && curr_time < lase_end_time)
         {
-            if (state != LASE)
+
+            if (test_state != LASE)
             {
+                //configure pins on entrance into LASE state/exit from WARMUP state
                 gpioSetMode(PULSE_PIN, PI_OUTPUT);
                 gpioWrite(PULSE_PIN, 0);
                 gpioWrite(ENABLE_PIN,1);
                 gpioSetPWMfrequency(PULSE_PIN,1000);
                 gpioPWM(PULSE_PIN,255/2);
-                state = LASE;
+                test_state = LASE;
             }
         }
         else if (lase_end_time < curr_time && curr_time < cool_end_time)
         {
-            if (state != _CRT_OBSOLETE)
+            if (test_state != COOL)
             {
+                //On exit of LASE/entrance to COOL state, disable lasing
                 gpioPWM(PULSE_PIN,0);
                 gpioWrite(ENABLE_PIN,0);
-                state = COOL;
+                test_state = COOL;
             }
         }
 
         float board_temp = mldBoardTemp(mld);
         float laser_temp = mldCaseTemp(mld);
 
-        fprintf(f, "%.2f,%.2f,%.2f\n", curr_time,board_temp, laser_temp);
+        fprintf(f, "%.2f,%s,%.2f,%.2f\n", curr_time, state_str[test_state],board_temp,laser_temp);
 
-        gpioDelay(100000); //delay 100 ms
+        while ((getEpochTime() - curr_time) < 0.1) {} //100 ms wait
     }
 
 q
