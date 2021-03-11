@@ -1,8 +1,8 @@
-#include <pigpio.h>
+//#include <pigpio.h>
+//#include <pigpio_local.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "MLD019.h"
 #include <assert.h>
 #include <ncurses.h>
 #include <sys/time.h>
@@ -15,10 +15,10 @@
 #define PULSE_PIN 26 //physical pin 37
 
 typedef enum states {
+    WAIT,
     WARMUP,
     LASE,
     COOL,
-    WAIT,
     QUIT
 } states_t;
 
@@ -61,33 +61,24 @@ int main(int argc, char** argv)
     int lasing_sec = atoi(argv[2]);
     int cool_sec = atoi(argv[3]);
 
-    gpioInitialise();
+    /* gpioInitialise();
     gpioSetMode(ENABLE_PIN, PI_OUTPUT);
     gpioWrite(ENABLE_PIN, 0); //write low to prevent emission
-
+ */
     //terminal manipulations for non-blocking getch()
 	initscr();
 	nodelay(stdscr,true);
 	noecho();
 
-    mld_t mld;
+/*     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
-
+ */
     //verify driver comms
-    if (mldLinkControl(mld) != 0) {
+    /* if (mldLinkControl(mld) != 0) {
         //terminate if error communicating with driver
         print("ERROR with driver communications\n");
         return -1;
-    }
-
-    char c;
-    states_t test_state = WARMUP;
-    do
-    {
-        printf("Enter \'S\' to start...\n\r");
-        printf("Enter \'q\' to quit...\n\r");
-        scanf("%c", &c);
-    } while (c != 'S' && c != 'q');
+    } */
 
     char filepath[200];
     getTimestampedFilePath(filepath,200);
@@ -96,10 +87,17 @@ int main(int argc, char** argv)
     fprintf(f,"WARMUP SECONDS,%d\nLASE SECONDS,%d\nCOOL SECONDS,%d\n\n",
             warmup_sec, lasing_sec, cool_sec);
     fprintf(f, "MSEC_ELAPSED, STATE, BOARD_TEMP (C), LASER_TEMP (C)\n");
+    
+    char c;
+    states_t test_state = WARMUP;
+    do
+    {
+        printf("Enter \'S\' to start...\n\r");
+        scanf("%c", &c);
+    } while (c != 'S');
 
 
-
-    Int warmup_end_time = warmup_sec;
+    int warmup_end_time = warmup_sec;
     int lase_end_time = warmup_end_time + lasing_sec;
     int cool_end_time = lase_end_time + cool_sec;
     double curr_time;
@@ -118,11 +116,11 @@ int main(int argc, char** argv)
             if (test_state != LASE)
             {
                 //configure pins on entrance into LASE state/exit from WARMUP state
-                gpioSetMode(PULSE_PIN, PI_OUTPUT);
+                /* gpioSetMode(PULSE_PIN, PI_OUTPUT);
                 gpioWrite(PULSE_PIN, 0);
                 gpioWrite(ENABLE_PIN,1);
                 gpioSetPWMfrequency(PULSE_PIN,1000);
-                gpioPWM(PULSE_PIN,255/2);
+                gpioPWM(PULSE_PIN,255/2); */
                 test_state = LASE;
             }
         }
@@ -131,25 +129,26 @@ int main(int argc, char** argv)
             if (test_state != COOL)
             {
                 //On exit of LASE/entrance to COOL state, disable lasing
-                gpioPWM(PULSE_PIN,0);
-                gpioWrite(ENABLE_PIN,0);
+                /* gpioPWM(PULSE_PIN,0);
+                gpioWrite(ENABLE_PIN,0); */
                 test_state = COOL;
             }
         }
+        else if (cool_end_time < curr_time) break; 
 
-        float board_temp = mldBoardTemp(mld);
-        float laser_temp = mldCaseTemp(mld);
+        float board_temp = 99.9;//mldBoardTemp(mld);
+        float laser_temp = 99.9;//mldCaseTemp(mld);
 
         fprintf(f, "%.2f,%s,%.2f,%.2f\n", curr_time*1000.0, state_str[test_state],board_temp,laser_temp);
 
         while ((getEpochTime() - start_time) < (0.1 + curr_time)) {} //100 ms wait
-    }
+    } //end while(getch() != 'q')
 
-q
-    gpioPWM(0);
+
+    /* gpioPWM(0);
     gpioWrite(ENABLE_PIN,0);
     serClose(mld.serial_handle);
-    gpioTerminate();
+    gpioTerminate(); */
     fclose(f);
     echo();
 	endwin(); //restore terminal configuration
