@@ -1,5 +1,5 @@
-LIBFLAGS = -lpigpio
+LIBFLAGS = -lpigpio -lcurses
 
 
 %:
-	gcc $@.c -o $@.out MLD019.c -I . -lpigpio 
+	gcc $@.c -o $@.out MLD019.c -I . $(LIBFLAGS) 

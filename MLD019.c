@@ -41,7 +41,7 @@ mld_err_t mldValidateMsg(mld_msg_u msg) {
      *  Return:     mld_err_t - returns an enum indicating the present error. 0 if no error occurs.
      *                          Currently only two vals: 0 for no error, -1 for errors
     **/
-    printf("rec_sum=%hhX\tcalc_sum=%hhX\n",msg.msg_struct.checksum, mldChecksum(msg));
+    //printf("rec_sum=%hhX\tcalc_sum=%hhX\n",msg.msg_struct.checksum, mldChecksum(msg));
 
     if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test...
         if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
@@ -111,7 +111,7 @@ int mldSendMsg(mld_t mld, mld_msg_u msg) {
     char out_buff[12];  //1 byte header + 3 bytes data + 1 byte checksum + carriage return + NUll
     msg.msg_struct.checksum = mldChecksum(msg);
     mldMsgToString(out_buff, msg);
-    printf("out_buff=%s\n",out_buff);
+    //printf("out_buff=%s\n",out_buff);
     return serWrite(mld.serial_handle,out_buff, 11);
 }   //end mldSendMsg
 
@@ -146,7 +146,7 @@ mld_msg_u mldRecvMsg(mld_t mld) {
             bytes_read += num_bytes;
         }
     } //end while(bytes_read < 11)
-    printf("in_buff=%s\n", recv_buff);
+    //printf("in_buff=%s\n", recv_buff);
     //if no serial errors encountered, parse received string into a message 
     recv_msg = mldStringToMsg(recv_buff);
     
@@ -170,8 +170,8 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     //build command message
     send_msg.msg_num_u = hex_cmd;
     send_msg.msg_struct.checksum = mldChecksum(send_msg);
-    printf("outgoing= ");
-    printMsgStruct(send_msg);
+    //printf("outgoing= ");
+    //printMsgStruct(send_msg);
 
     //clear Serial RX buffer
     while (serDataAvailable(mld.serial_handle) > 0) {
@@ -181,7 +181,7 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
 
     //send message
     int send_status = mldSendMsg(mld, send_msg);
-    printf("send_status=%d\n",send_status);
+    //printf("send_status=%d\n",send_status);
 
     if (send_status < 0) {
         //if error occurs on write, recv_msg contains resulting error code
@@ -210,8 +210,8 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
             recv_msg = mldStringToMsg("0xffffffffff");
         }
     }
-    printf("incoming= ");
-    printMsgStruct(recv_msg);
+    //printf("incoming= ");
+    //printMsgStruct(recv_msg);
 
     return recv_msg;
 }
