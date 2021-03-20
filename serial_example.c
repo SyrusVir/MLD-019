@@ -7,9 +7,14 @@
 #define SERIAL_TERM "/dev/ttyAMA0" //target PL011 UART module
 #define BAUD 9600
 
-#define ENABLE_PIN 6 //physical pin 31
-#define PULSE_PIN 26 //physical pin 37
-#define SHUTTER_PIN 5 //physical pin 29
+#define LASER_ENABLE_PIN 5      // physical pin 29
+#define LASER_SHUTTER_PIN 6     // physical pin 31
+#define LASER_PULSE_PIN 13       // physical pin 33
+#define LASER_PULSE_FREQ 5000    
+#define LASER_PULSE_PERIOD_USEC 1000000/LASER_PULSE_FREQ   
+#define LASER_PULSE_WIDTH_USEC 10
+#define LASER_PULSE_DUTY (unsigned int)(LASER_PULSE_WIDTH_USEC / 1000000.0 * LASER_PULSE_FREQ * PI_HW_PWM_RANGE)
+#define LASER_PULSE_DURATION_SEC 30
 
 int main(int argc, char** argv) {
     gpioInitialise();
@@ -17,22 +22,33 @@ int main(int argc, char** argv) {
     mld_t mld;
     mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
-    gpioSetMode(ENABLE_PIN, PI_OUTPUT);
-    gpioSetMode(SHUTTER_PIN, PI_OUTPUT);
+    gpioSetMode(LASER_ENABLE_PIN, PI_OUTPUT);
+    gpioSetMode(LASER_SHUTTER_PIN, PI_OUTPUT);
 
     //disable
     bool enable_state = 0;
     bool shutter_state = 0;
-    gpioWrite(ENABLE_PIN,0);
-    gpioWrite(SHUTTER_PIN,0);
+    gpioWrite(LASER_ENABLE_PIN,0);
+    gpioWrite(LASER_SHUTTER_PIN,0);
 
-    gpioSetMode(PULSE_PIN, PI_OUTPUT);
+    gpioSetMode(LASER_PULSE_PIN, PI_OUTPUT);
     
     char c;
     do 
     {    
-        printf("\'c\' to exit | any other char to execute mldLinkControl\n");
-        scanf("%c",&c);
+        printf("\'c\' - exit\n");
+        printf("\'l\' - mldlinkcontrol\n");
+        printf("\'s\' - mldStatus\n");
+        printf("\'v\' - mldVLD\n");
+        printf("\'b\' - mldBoardTemp\n");
+        printf("\'f\' - mldFirmware\n");
+        printf("\'o\' - mldCheckConfig\n");
+        printf("\'d\' - mldCaseTemp\n");
+        printf("\'E\' - toggle laser enable\n");
+        printf("\'S\' - toggle laser shutter\n");
+        printf("\'P\' - emit laser pulses\n");
+
+        scanf("%c%*c",&c);
         switch (c)
         {
             case 'l':
@@ -58,23 +74,25 @@ int main(int argc, char** argv) {
                 break;
             case 'E':
                 enable_state = !enable_state;
-                printf("gpioWrite=%d\n",gpioWrite(ENABLE_PIN, enable_state));
+                printf("gpioWrite=%d\n",gpioWrite(LASER_ENABLE_PIN, enable_state));
                 printf("enable_state=%d\n",enable_state);
                 break;
             case 'S':
                 shutter_state = !shutter_state;
-                printf("gpioWrite=%d\n",gpioWrite(SHUTTER_PIN, shutter_state));
+                printf("gpioWrite=%d\n",gpioWrite(LASER_SHUTTER_PIN, shutter_state));
                 printf("shutter_state=%d\n",shutter_state);
                 gpioDelay(500000);
                 break;
             case 'P':
-                gpioSetPWMfrequency(PULSE_PIN,1000);
+                // gpioSetPWMfrequency(LASER_PULSE_PIN,LASER_PULSE_FREQ);
                 uint32_t start_tick = gpioTick();
-                uint32_t end_tick = start_tick + 1000000; //add 200 ms
-                gpioPWM(PULSE_PIN,255/2);
+                uint32_t end_tick = start_tick + LASER_PULSE_DURATION_SEC * 1000000; //add 200 ms
+                // gpioPWM(LASER_PULSE_PIN,255/2);
+                gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
                 while (gpioTick() < end_tick) {}
-                gpioPWM(PULSE_PIN,0);
-                printf("gpioTrigger=%d\n",gpioTrigger(PULSE_PIN,3,1));
+                //gpioPWM(LASER_PULSE_PIN,0);
+                gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
+                printf("gpioTrigger=%d\n",gpioTrigger(LASER_PULSE_PIN,3,1));
                 break;
             default:
                 break;
