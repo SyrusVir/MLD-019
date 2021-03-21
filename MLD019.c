@@ -102,8 +102,8 @@ mld_msg_u mldStringToMsg(char* str) {
     return msg;
 }   //end mldStringToMsg()
 
-int mldSendMsg(mld_t mld, mld_msg_u msg) {
-    /** Parameters: mld_t mld - a structure describing the current state of the MLD019 driver
+int mldSendMsg(mld_t* mld, mld_msg_u msg) {
+    /** Parameters: mld_t* mld - a structure describing the current state of the MLD019 driver
      *              mld_msg_u msg - Union representing hexadecimal code to transmit
      * Return:      int serWrite() - status of the serWrite() call, which returns 0 if OK,
      *                               <0 otherwise. 
@@ -112,11 +112,11 @@ int mldSendMsg(mld_t mld, mld_msg_u msg) {
     msg.msg_struct.checksum = mldChecksum(msg);
     mldMsgToString(out_buff, msg);
     //printf("out_buff=%s\n",out_buff);
-    return serWrite(mld.serial_handle,out_buff, 11);
+    return serWrite(mld->serial_handle,out_buff, 11);
 }   //end mldSendMsg
 
-mld_msg_u mldRecvMsg(mld_t mld) {
-    /** Parameters: mld_t mld - struct describing MLD019 driver to read from
+mld_msg_u mldRecvMsg(mld_t* mld) {
+    /** Parameters: mld_t* mld - struct describing MLD019 driver to read from
      *  Return:     mld_msg_u recv_msg - a message union encpasulating the 5-byte return data or
      *                                   serial error
      * 
@@ -134,7 +134,7 @@ mld_msg_u mldRecvMsg(mld_t mld) {
     while (bytes_read < 11) {
         
         //printf("bytes_read=%d\n",bytes_read);
-        num_bytes = serRead(mld.serial_handle, recv_buff+bytes_read, 11 - bytes_read);
+        num_bytes = serRead(mld->serial_handle, recv_buff+bytes_read, 11 - bytes_read);
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
@@ -153,8 +153,8 @@ mld_msg_u mldRecvMsg(mld_t mld) {
     return recv_msg;
 }
 
-mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
-    /** Parameters: mld_t mld - struct representing MLD-019 driver
+mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd) {
+    /** Parameters: mld_t* mld - struct representing MLD-019 driver
      *              uint64_t - 5-byte number matching a hexadecimal MLD019 command code
      *  Return:     mld_msg_u recv_msg - return message from MLD019
      * 
@@ -174,9 +174,9 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     //printMsgStruct(send_msg);
 
     //clear Serial RX buffer
-    while (serDataAvailable(mld.serial_handle) > 0) {
+    while (serDataAvailable(mld->serial_handle) > 0) {
         //if no data error returned, break from loop early
-        if(serReadByte(mld.serial_handle) == PI_SER_READ_NO_DATA) break;
+        if(serReadByte(mld->serial_handle) == PI_SER_READ_NO_DATA) break;
     }
 
     //send message
@@ -184,7 +184,7 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     //printf("send_status=%d\n",send_status);
 
     if (send_status < 0) {
-        //if error occurs on write, recv_msg contains resulting error code
+        //if error occurs on write, recv_msg contains resulting unsigned error code
         recv_msg.msg_num_u = send_status;
     }
     else {
@@ -192,13 +192,14 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
         int curr_sec;
         int stop_sec;
         int usec;
+        
+        //wait at most SERIAL_TIMEOUT_SEC for at least 11 bytes to be received
         gpioTime(PI_TIME_RELATIVE, &curr_sec, &usec);
         stop_sec = curr_sec + SERIAL_TIMEOUT_SEC;
-        while(serDataAvailable(mld.serial_handle) < 11) {
+        while(serDataAvailable(mld->serial_handle) < 11) 
+        {
             gpioTime(PI_TIME_RELATIVE,&curr_sec, &usec);
-            if (curr_sec >= stop_sec) {
-                break;
-            }
+            if (curr_sec >= stop_sec) break;
         }
 
         if (curr_sec < stop_sec) {
@@ -206,7 +207,7 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
             recv_msg = mldRecvMsg(mld);
         }
         else {
-            printf("SERIAL TIMEOUT");
+            printf("SERIAL TIMEOUT\n");
             recv_msg = mldStringToMsg("0xffffffffff");
         }
     }
@@ -216,9 +217,9 @@ mld_msg_u mldExecuteCMD(mld_t mld, uint64_t hex_cmd) {
     return recv_msg;
 }
 
-mld_t mldInit(char* sertty) {
+mld_t* mldInit(char* sertty) {
     /** Parameters: char* sertty - path to the unix file representing the serial module
-     *  Return:     mld_t mld - a struct encapsulating a serial handle to the MLD019 driver
+     *  Return:     mld_t* mld - a pointer to a  struct encapsulating a serial handle to the MLD019 driver
      *                          and its current operating mode
      * 
      * Description: Serial communications with an MLD019 is fixed at 9600 baud, 8n1 configuration.
@@ -226,29 +227,31 @@ mld_t mldInit(char* sertty) {
      *              confirm that the driver is responsive. If so, send commands querying the
      *              laser's current configuration
     **/
-    mld_t mld;
+    mld_t* mld = malloc(sizeof(mld_t));
     mld_msg_u recv;
     //obtain serial handle
-    mld.serial_handle = serOpen(sertty,9600,0);
-    if (mld.serial_handle < 0) {
+    mld->serial_handle = serOpen(sertty,9600,0);
+    if (mld->serial_handle < 0) {
         //exit with error if serial connection could not be opened
         printf("CRITICAL Error:\n\t Failed to open serial connection at %s", sertty);
-        exit(mld.serial_handle);
+        exit(mld->serial_handle);
     } 
     else {
+        mldCheckConfig(mld);
         return mld;
     }
 }   //end mldInit
 
-int mldClose(mld_t mld){
-    int close_status = serClose(mld.serial_handle);
+int mldClose(mld_t* mld){
+    int close_status = serClose(mld->serial_handle);
+    free(mld);
     return close_status;
 }
 
 ////////////////////////////////////////MLD Available Commands//////////////////////////////////////////////////
 
-int16_t mldLinkControl(mld_t mld) {
-    /** Parameters: mld_t mld - struct encpasulating state of MLD019 driver
+int16_t mldLinkControl(mld_t* mld) {
+    /** Parameters: mld_t* mld - struct encpasulating state of MLD019 driver
      *  Return:     int16_t - If true, MLD019 driver described by [mld] is responding
      *                     to serial communications **/
 
@@ -258,7 +261,7 @@ int16_t mldLinkControl(mld_t mld) {
     
 }
 
-int64_t mldReadRTC(mld_t mld){
+int64_t mldReadRTC(mld_t* mld){
     /** Returns the internal laser aging counter. A 24-bit number equal to seconds since 
      *  the laser has been armed.
      *  
@@ -281,7 +284,7 @@ int64_t mldReadRTC(mld_t mld){
     return rtc; 
 }
 
-float mldCaseTemp(mld_t mld) {
+float mldCaseTemp(mld_t* mld) {
     /** Returns the temperature of the laser head.
      *  Case temperature = [Datum1][Datum2]/100 C **/
 
@@ -299,7 +302,7 @@ float mldCaseTemp(mld_t mld) {
     return temp/100.0;
 }
 
-float mldVLD(mld_t mld){
+float mldVLD(mld_t* mld){
     uint16_t voltage;
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A0000000);
     
@@ -314,7 +317,7 @@ float mldVLD(mld_t mld){
     
 }
 
-int16_t mldStatus(mld_t mld) {
+int16_t mldStatus(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x100C000000);
 
     
@@ -326,7 +329,7 @@ int16_t mldStatus(mld_t mld) {
     return recv_msg.msg_struct.datum2;
 }
 
-uint32_t mldFirmware(mld_t mld) {
+uint32_t mldFirmware(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x101A000000);
 
     
@@ -340,7 +343,7 @@ uint32_t mldFirmware(mld_t mld) {
     return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
 }
 
-float mldBoardTemp(mld_t mld){
+float mldBoardTemp(mld_t* mld){
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x1018000000);
     uint16_t temp = 0;  //unsure if return value is always unsigned
 
@@ -354,7 +357,7 @@ float mldBoardTemp(mld_t mld){
     return temp/100.0;
 }
 
-uint16_t mldDIMonitor(mld_t mld) {
+uint16_t mldDIMonitor(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x1010000000);
     
     if(mldValidateMsg(recv_msg) != 0) {
@@ -364,7 +367,8 @@ uint16_t mldDIMonitor(mld_t mld) {
     return (recv_msg.msg_struct.datum1 << 8) | recv_msg.msg_struct.datum2;
 
 }
-uint32_t mldSerialNum(mld_t mld) {
+
+uint32_t mldSerialNum(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x10A1000000);
     
     if(mldValidateMsg(recv_msg) != 0) {
@@ -375,18 +379,21 @@ uint32_t mldSerialNum(mld_t mld) {
     return (recv_msg.msg_num_u & 0x00FFFFFF00) >> 8;
 }
 
-uint32_t mldCheckConfig(mld_t mld) {
+uint32_t mldCheckConfig(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x300C10032F);
-    //need to verify return message, confusing documentatoin
-    if(mldValidateMsg(recv_msg) != 0) {
+
+    if(mldValidateMsg(recv_msg) != 0) 
+    {
         printf("mldReadRTC ERROR\n");
         return -1;
     }
-
+    
+    mld->mode = recv_msg.msg_struct.datum3 & 0xF0;
+    mld->trigger_source = recv_msg.msg_struct.datum3 & 0x0F;
     return recv_msg.msg_num_u;
 }
 
-uint32_t mldHWConfig(mld_t mld) {
+uint32_t mldHWConfig(mld_t* mld) {
     static const uint64_t commands[] = {
         0x310C10022F,
         0x3200004270,
@@ -405,7 +412,7 @@ uint32_t mldHWConfig(mld_t mld) {
     return mldCheckConfig(mld);
 }
 
-uint32_t mldSWConfig(mld_t mld) {
+uint32_t mldSWConfig(mld_t* mld) {
     static const uint64_t commands[] = {
         0x310C14022B,
         0x3200000032,
@@ -416,7 +423,7 @@ uint32_t mldSWConfig(mld_t mld) {
     mld_msg_u send_msg;
     for (int i = 0; i < 4; i++) {
         send_msg.msg_num_u = commands[i];
-        send_msg.msg_struct.checksum = mldChecksum(send_msg);
+        send_msg.msg_struct.checksum = mldChecksum(send_msg); //checksum calculation optional
         mldSendMsg(mld, send_msg);
     }
 
@@ -424,16 +431,31 @@ uint32_t mldSWConfig(mld_t mld) {
     return mldCheckConfig(mld);
 }
 
-/*
-void mldTriggerSource(mld_t mld, mld_trig_t trig_src) {
-    switch(trig_src) {
-        case MLD_TRIG_EXTERNAL:
-        case MLD_TRIG_INTERNAL:
-    }
-}
-*/
+uint32_t mldTrigConfig(mld_t* mld, mld_trig_t trig_src) {
+    static const uint64_t commands[2] = {
+        0x310c10022F,
+        0x3200000000
+    };
+    
+    //if already configured for desired trigger source, return
+    if (mld->trigger_source == trig_src) return 0;
 
-uint16_t mldLaserControl(mld_t mld, mld_controls_t cntrl) {
+    //Sending first command
+    mld_msg_u send_msg;
+    send_msg.msg_num_u = commands[0];
+    send_msg.msg_struct.checksum = mldChecksum(send_msg);
+    mldSend(mld, send_msg);
+
+    uint8_t target_config = (mld->mode | trig_src);
+    send_msg.msg_num_u = commands[1];
+    send_msg.msg_struct.datum3 = target_config;
+    send_msg.msg_struct.checksum = mldChecksum(send_msg);
+    mldSendMsg(mld, send_msg);
+
+    return mldCheckConfig(mld);
+}
+
+uint16_t mldLaserControl(mld_t* mld, mld_controls_t cntrl) {
     static const uint64_t commands [4][2] = {
         {0x3101000131, 0x3200000133},   //set interlock
         {0x3101000131, 0x3200000032},   //unset interlock
@@ -450,7 +472,7 @@ uint16_t mldLaserControl(mld_t mld, mld_controls_t cntrl) {
     return mldDIMonitor(mld);
 }
 
-void mldSetPRR(mld_t mld, uint16_t period_usec) {
+void mldSetPRR(mld_t* mld, uint16_t period_usec) {
     mld_msg_u send_msg;
     send_msg.msg_num_u = 0x310C0E0231;
     send_msg.msg_struct.checksum = mldChecksum(send_msg);
