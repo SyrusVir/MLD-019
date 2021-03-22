@@ -7,9 +7,9 @@
 #define SERIAL_TERM "/dev/ttyAMA0" //target PL011 UART module
 #define BAUD 9600
 
-#define LASER_ENABLE_PIN 5      // physical pin 29
-#define LASER_SHUTTER_PIN 6     // physical pin 31
-#define LASER_PULSE_PIN 13       // physical pin 33
+#define LASER_ENABLE_PIN 26      // physical pin 37
+#define LASER_SHUTTER_PIN 6      // physical pin 31
+#define LASER_PULSE_PIN 23       // physical pin 16
 #define LASER_PULSE_FREQ 5000    
 #define LASER_PULSE_PERIOD_USEC 1000000/LASER_PULSE_FREQ   
 #define LASER_PULSE_WIDTH_USEC 10
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
                 printf("shutter_state=%d\n",shutter_state);
                 gpioDelay(500000);
                 break;
-            case 'P':
+            case 'P':;
                 // gpioSetPWMfrequency(LASER_PULSE_PIN,LASER_PULSE_FREQ);
                 uint32_t start_tick = gpioTick();
                 uint32_t end_tick = start_tick + LASER_PULSE_DURATION_SEC * 1000000; //add 200 ms
