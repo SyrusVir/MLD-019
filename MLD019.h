@@ -74,6 +74,9 @@ mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd);
 //Open the serial module described by sertty and return a configured MLD struct
 mld_t* mldInit(char* sertty);
 
+//Closes the serial connection and frees memory
+int mldClose(mld_t* mld);
+
 //Use to verify serial connection and responsive MLD019 driver
 int16_t mldLinkControl(mld_t* mld);
 

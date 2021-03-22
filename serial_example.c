@@ -19,8 +19,8 @@
 int main(int argc, char** argv) {
     gpioInitialise();
 
-    mld_t mld;
-    mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
+    mld_t* mld = mldInit(SERIAL_TERM);
+    // mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
     gpioSetMode(LASER_ENABLE_PIN, PI_OUTPUT);
     gpioSetMode(LASER_SHUTTER_PIN, PI_OUTPUT);
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
         }
     } while (c != 'c');
 
-    serClose(mld.serial_handle);
+    mldClose(mld);
     gpioTerminate();
     return 0;
 }
