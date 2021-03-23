@@ -10,7 +10,7 @@
 #define LASER_ENABLE_PIN 26      // physical pin 37
 #define LASER_SHUTTER_PIN 6      // physical pin 31
 #define LASER_PULSE_PIN 23       // physical pin 16
-#define LASER_PULSE_FREQ 5000    
+#define LASER_PULSE_FREQ 10000    
 #define LASER_PULSE_PERIOD_USEC 1000000/LASER_PULSE_FREQ   
 #define LASER_PULSE_WIDTH_USEC 10
 #define LASER_PULSE_DUTY (unsigned int)(LASER_PULSE_WIDTH_USEC / 1000000.0 * LASER_PULSE_FREQ * PI_HW_PWM_RANGE)
@@ -21,6 +21,9 @@ int main(int argc, char** argv) {
 
     mld_t* mld = mldInit(SERIAL_TERM);
     // mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
+
+    printf("mld mode = %X\n",mld->mode);
+    printf("mld trigger = %X\n",mld->trigger_source);
 
     gpioSetMode(LASER_ENABLE_PIN, PI_OUTPUT);
     gpioSetMode(LASER_SHUTTER_PIN, PI_OUTPUT);
@@ -88,11 +91,16 @@ int main(int argc, char** argv) {
                 uint32_t start_tick = gpioTick();
                 uint32_t end_tick = start_tick + LASER_PULSE_DURATION_SEC * 1000000; //add 200 ms
                 // gpioPWM(LASER_PULSE_PIN,255/2);
-                gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
-                while (gpioTick() < end_tick) {}
+                //gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
+                while (gpioTick() < end_tick) {
+                    gpioWrite(LASER_PULSE_PIN,1);
+                    gpioDelay(500);
+                    gpioWrite(LASER_PULSE_PIN,0);
+                    gpioDelay(500);
+
+                }
                 //gpioPWM(LASER_PULSE_PIN,0);
-                gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
-                printf("gpioTrigger=%d\n",gpioTrigger(LASER_PULSE_PIN,3,1));
+                //gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
                 break;
             default:
                 break;

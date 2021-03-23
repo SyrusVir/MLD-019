@@ -122,7 +122,7 @@ uint32_t mldTrigConfig(mld_t* mld, mld_trig_t trig_src);
 
 
 //Sets/unsets the interlock/enable
-uint16_t mldLaserControl(mld_t* mld, mld_controls_t cntrl;
+uint16_t mldLaserControl(mld_t* mld, mld_controls_t cntrl);
 
 //sets the pulse repetition rate of the internal generator
 void mldSetPRR(mld_t* mld, uint16_t period_usec);

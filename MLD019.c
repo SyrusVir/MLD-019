@@ -10,6 +10,7 @@
 #define MSG_BYTES 6 //5-byte command + carriage return
 #define BAUD 9600   //baud rate defined b MLD-019 datasheet
 #define SERIAL_TIMEOUT_SEC 3
+
 void printMsgStruct(mld_msg_u msg) {
     printf("%hhX ",msg.msg_struct.header);
     printf("%hhX ",msg.msg_struct.datum1);
@@ -381,13 +382,14 @@ uint32_t mldSerialNum(mld_t* mld) {
 
 uint32_t mldCheckConfig(mld_t* mld) {
     mld_msg_u recv_msg = mldExecuteCMD(mld, 0x300C10032F);
-
     if(mldValidateMsg(recv_msg) != 0) 
     {
         printf("mldReadRTC ERROR\n");
         return -1;
     }
-    
+
+    printf("mldCheckConfig recv: ");
+    printMsgStruct(recv_msg);
     mld->mode = recv_msg.msg_struct.datum3 & 0xF0;
     mld->trigger_source = recv_msg.msg_struct.datum3 & 0x0F;
     return recv_msg.msg_num_u;
@@ -424,7 +426,11 @@ uint32_t mldSWConfig(mld_t* mld) {
     for (int i = 0; i < 4; i++) {
         send_msg.msg_num_u = commands[i];
         send_msg.msg_struct.checksum = mldChecksum(send_msg); //checksum calculation optional
+        printf("SWConfig sending: ");
+        printMsgStruct(send_msg);
         mldSendMsg(mld, send_msg);
+        printf("SWConfig Received: ");
+        printMsgStruct(mldRecvMsg(mld));
     }
 
     //verify configuration
@@ -444,7 +450,7 @@ uint32_t mldTrigConfig(mld_t* mld, mld_trig_t trig_src) {
     mld_msg_u send_msg;
     send_msg.msg_num_u = commands[0];
     send_msg.msg_struct.checksum = mldChecksum(send_msg);
-    mldSend(mld, send_msg);
+    mldSendMsg(mld, send_msg);
 
     uint8_t target_config = (mld->mode | trig_src);
     send_msg.msg_num_u = commands[1];
