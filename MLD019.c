@@ -151,7 +151,7 @@ mld_msg_u mldRecvMsg(mld_t* mld) {
     while (bytes_read < 11) {
         
         //printf("bytes_read=%d\n",bytes_read);
-        num_bytes = serRead(mld->serial_handle, recv_buff[bytes_read], 11 - bytes_read);
+        num_bytes = serRead(mld->serial_handle, recv_buff+bytes_read, 11 - bytes_read);
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
