@@ -9,7 +9,6 @@
 #define SERIAL_TTY "/dev/ttyAMA0"
 #define MSG_BYTES 6 //5-byte command + carriage return
 #define BAUD 9600   //baud rate defined b MLD-019 datasheet
-#define SERIAL_TIMEOUT_SEC 3
 
 void printMsgStruct(mld_msg_u msg) {
     printf("%hhX ",msg.msg_struct.header);
@@ -45,7 +44,7 @@ mld_err_t mldValidateMsg(mld_msg_u msg) {
     //printf("rec_sum=%hhX\tcalc_sum=%hhX\n",msg.msg_struct.checksum, mldChecksum(msg));
 
     if (msg.msg_struct.checksum != mldChecksum(msg)) { //if msg fails checksum test...
-        if (msg.msg_struct.header == 0xFF) { //..check if error occured in pigpio serial routines
+        if ((msg.msg_struct.header & 0xF0) == 0xF0) { //..check if error occured in pigpio serial routines (i.e. msg is negative)
             
             return MLD_ERR;
             //return msg.msg_num_s & 0xFFFF;   //return least significant word of signed error code if so
@@ -135,7 +134,7 @@ mld_msg_u mldRecvMsg(mld_t* mld) {
     while (bytes_read < 11) {
         
         //printf("bytes_read=%d\n",bytes_read);
-        num_bytes = serRead(mld->serial_handle, recv_buff+bytes_read, 11 - bytes_read);
+        num_bytes = serRead(mld->serial_handle, recv_buff[bytes_read], 11 - bytes_read);
 
         if (num_bytes < 0) {
             //if serial read error occurs, return error code in recv_msg
@@ -190,26 +189,24 @@ mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd) {
     }
     else {
         //otherwise msg successflly transmitted; wait for return data
-        int curr_sec;
-        int stop_sec;
-        int usec;
+        int curr_tick = gpioTick();
+        int stop_tick = curr_tick + mld->serial_timeout_msec * 1000;
         
-        //wait at most SERIAL_TIMEOUT_SEC for at least 11 bytes to be received
-        gpioTime(PI_TIME_RELATIVE, &curr_sec, &usec);
-        stop_sec = curr_sec + SERIAL_TIMEOUT_SEC;
-        while(serDataAvailable(mld->serial_handle) < 11) 
+        //wait at most serial_timeout_msec for at least 11 bytes to be received
+        while(serDataAvailable(mld->serial_handle) < 11 || curr_tick < stop_tick) 
         {
-            gpioTime(PI_TIME_RELATIVE,&curr_sec, &usec);
-            if (curr_sec >= stop_sec) break;
+            curr_tick = gpioTick();
         }
 
-        if (curr_sec < stop_sec) {
+        if (curr_tick < stop_tick) // previous loop did not timeout
+        {
             //receive message; if error occurs on read, recv_msg contains resulting error code
             recv_msg = mldRecvMsg(mld);
         }
-        else {
+        else // previous loop timed out
+        {
             printf("SERIAL TIMEOUT\n");
-            recv_msg = mldStringToMsg("0xffffffffff");
+            recv_msg = mldStringToMsg("0x0");
         }
     }
     //printf("incoming= ");
@@ -218,20 +215,20 @@ mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd) {
     return recv_msg;
 }
 
-mld_t* mldInit(char* sertty) {
+mld_t* mldInit(char* sertty, int serial_timeout_msec) {
     /** Parameters: char* sertty - path to the unix file representing the serial module
      *  Return:     mld_t* mld - a pointer to a  struct encapsulating a serial handle to the MLD019 driver
      *                          and its current operating mode
      * 
-     * Description: Serial communications with an MLD019 is fixed at 9600 baud, 8n1 configuration.
-     *              After a valid serial handle is obtained, the Link Control command is sent to
-     *              confirm that the driver is responsive. If so, send commands querying the
-     *              laser's current configuration
-    **/
+     * Description: Serial communications with an MLD019 is fixed at 9600 baud, 8n1 configuration. Updates
+     *              mld struct with current driver configuration (HW/Sw and trigger source)
+     */
     mld_t* mld = malloc(sizeof(mld_t));
-    mld_msg_u recv;
-    //obtain serial handle
+    
     mld->serial_handle = serOpen(sertty,9600,0);
+    mld->error = 0;
+    mld->serial_timeout_msec = serial_timeout_msec;
+    
     if (mld->serial_handle < 0) {
         //exit with error if serial connection could not be opened
         printf("CRITICAL Error:\n\t Failed to open serial connection at %s", sertty);

@@ -31,7 +31,8 @@ typedef struct MldDriver {
     mld_mode_t mode;
     mld_trig_t trigger_source;
     int serial_handle;
-
+    int error;              // CURRENTLY UNUSED; meant to hold last error code
+    int serial_timeout_msec //-1 to wait indefinitely for response
 } mld_t;
 
 typedef struct MldMessage {
