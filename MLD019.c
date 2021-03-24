@@ -1,4 +1,21 @@
-/*NOTE: Hex argument to mldExecuteCMD must be at least 5 bytes long*/
+/**Author:  Jude Alnas
+ * Email:   jalnas@crimson.ua.edu
+ * Date:    Mar 23 2021
+ * 
+ * Description: This library encapsulates all the serial commands offered
+ *              by the MLD-019 laser driver from BrightMicro laser.
+ * 
+ *              The MLD-019 communicates using 9600 baud, 8n1 config with 5V
+ *              TTL logic (note that the RPi uses 3.3V logic)
+ * 
+ *              Commands to the driver are 5 byte hex strings of the form:
+ *                  [header][datum1][datum2][datum3][checksum]
+ *              where the checksum is the XOR of the other 4 bytes. These
+ *              hex strings are transmitted as <CR>-terminated strings over serial
+ *              E.g., 0x4A is transmitted as 0x34 (ASCII '4') 0x41 (ASCII 'A') 0xD (carriage return)
+ * 
+ *              
+ * NOTE: Hex argument to mldExecuteCMD must be at least 5 bytes long*/
 
 #include <stdio.h>
 #include <stdlib.h>
