@@ -19,7 +19,7 @@
 int main(int argc, char** argv) {
     gpioInitialise();
 
-    mld_t* mld = mldInit(SERIAL_TERM);
+    mld_t* mld = mldInit(SERIAL_TERM, 3000);
     // mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
     printf("mld mode = %X\n",mld->mode);
@@ -94,9 +94,9 @@ int main(int argc, char** argv) {
                 //gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
                 while (gpioTick() < end_tick) {
                     gpioWrite(LASER_PULSE_PIN,1);
-                    gpioDelay(500);
+                    gpioDelay(50);
                     gpioWrite(LASER_PULSE_PIN,0);
-                    gpioDelay(500);
+                    gpioDelay(50);
 
                 }
                 //gpioPWM(LASER_PULSE_PIN,0);

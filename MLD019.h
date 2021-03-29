@@ -27,12 +27,13 @@ typedef enum MldError {
     MLD_ERR = -1
 } mld_err_t;
 
+
 typedef struct MldDriver {
     mld_mode_t mode;
     mld_trig_t trigger_source;
     int serial_handle;
     int error;              // CURRENTLY UNUSED; meant to hold last error code
-    int serial_timeout_msec //-1 to wait indefinitely for response
+    int serial_timeout_msec; //-1 to wait indefinitely for response
 } mld_t;
 
 typedef struct MldMessage {
@@ -73,7 +74,7 @@ mld_msg_u mldStringToMsg(char* str);
 mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd);
 
 //Open the serial module described by sertty and return a configured MLD struct
-mld_t* mldInit(char* sertty);
+mld_t* mldInit(char* sertty, int serial_timeout_msec);
 
 //Closes the serial connection and frees memory
 int mldClose(mld_t* mld);
