@@ -95,9 +95,9 @@ int main(int argc, char** argv) {
                 //gpioHardwarePWM(LASER_PULSE_PIN, LASER_PULSE_FREQ, LASER_PULSE_DUTY);
                 while (gpioTick() < end_tick) {
                     gpioWrite(LASER_PULSE_PIN,1);
-                    gpioDelay(50);
+                    gpioDelay(100);
                     gpioWrite(LASER_PULSE_PIN,0);
-                    gpioDelay(50);
+                    gpioDelay(100);
 
                 }
                 //gpioPWM(LASER_PULSE_PIN,0);
@@ -108,6 +108,8 @@ int main(int argc, char** argv) {
         }
     } while (c != 'c');
 
+    gpioWrite(LASER_ENABLE_PIN,0);
+    gpioWrite(LASER_SHUTTER_PIN,0);
     mldClose(mld);
     gpioTerminate();
     return 0;
