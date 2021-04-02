@@ -206,16 +206,13 @@ mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd) {
     }
     else {
         //otherwise msg successflly transmitted; wait for return data
-        int curr_tick = gpioTick();
-        int stop_tick = curr_tick + mld->serial_timeout_msec * 1000;
-        
-        //wait at most serial_timeout_msec for at least 11 bytes to be received
-        while(serDataAvailable(mld->serial_handle) < 11 || curr_tick < stop_tick) 
-        {
-            curr_tick = gpioTick();
-        }
+        int start_tick = gpioTick();
+        int timeout_usec = mld->serial_timeout_msec * 1000;
 
-        if (curr_tick < stop_tick) // previous loop did not timeout
+        //wait at most serial_timeout_msec for at least 11 bytes to be received
+        while(serDataAvailable(mld->serial_handle) < 11 && (gpioTick() - start_tick) < timeout_usec); 
+
+        if (serDataAvailable(mld->serial_handle) >= 11) // previous loop did not timeout
         {
             //receive message; if error occurs on read, recv_msg contains resulting error code
             recv_msg = mldRecvMsg(mld);

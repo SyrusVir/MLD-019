@@ -20,6 +20,7 @@ int main(int argc, char** argv) {
     gpioInitialise();
 
     mld_t* mld = mldInit(SERIAL_TERM, 3000);
+    printf("serial_handle =%d\n", mld->serial_handle);
 
     // mld.serial_handle = serOpen(SERIAL_TERM, BAUD, 0);
 
