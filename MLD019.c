@@ -26,8 +26,10 @@
 #define SERIAL_TTY "/dev/ttyAMA0"
 #define MSG_BYTES 6 //5-byte command + carriage return
 #define BAUD 9600   //baud rate defined b MLD-019 datasheet
+#define SERIAL_TIMEOUT_SEC 3
 
-void printMsgStruct(mld_msg_u msg) {
+void printMsgStruct(mld_msg_u msg) 
+{
     printf("%hhX ",msg.msg_struct.header);
     printf("%hhX ",msg.msg_struct.datum1);
     printf("%hhX ",msg.msg_struct.datum2);
@@ -100,7 +102,7 @@ char* mldMsgToString(char* buff, mld_msg_u msg) {
      *  **/
     
     //0-padded, 10-character hex string + carriage return + NULL = 12 bytes
-    snprintf(buff,12,"%0*llX\r",10, msg.msg_num_u & 0xFFFFFFFFFF);   
+    snprintf(buff,12,"%0*lX\r",10, msg.msg_num_u & (uint64_t)0xFFFFFFFFFF);   
 
     return buff;
 }   //end mldMsgToString()
@@ -206,8 +208,8 @@ mld_msg_u mldExecuteCMD(mld_t* mld, uint64_t hex_cmd) {
     }
     else {
         //otherwise msg successflly transmitted; wait for return data
-        int start_tick = gpioTick();
-        int timeout_usec = mld->serial_timeout_msec * 1000;
+        uint32_t start_tick = gpioTick();
+        uint32_t timeout_usec = mld->serial_timeout_msec * 1000;
 
         //wait at most serial_timeout_msec for at least 11 bytes to be received
         while(serDataAvailable(mld->serial_handle) < 11 && (gpioTick() - start_tick) < timeout_usec); 
@@ -238,7 +240,7 @@ mld_t* mldInit(char* sertty, int serial_timeout_msec) {
      *              mld struct with current driver configuration (HW/Sw and trigger source)
      */
     mld_t* mld = malloc(sizeof(mld_t));
-    
+    //obtain serial handle
     mld->serial_handle = serOpen(sertty,9600,0);
     mld->error = 0;
     mld->serial_timeout_msec = serial_timeout_msec;

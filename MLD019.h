@@ -29,11 +29,11 @@ typedef enum MldError {
 
 
 typedef struct MldDriver {
+    int serial_handle;
+    uint32_t serial_timeout_msec;
+    int error; // CURRENTLY UNUSED; meant to hold last error code
     mld_mode_t mode;
     mld_trig_t trigger_source;
-    int serial_handle;
-    int error;              // CURRENTLY UNUSED; meant to hold last error code
-    int serial_timeout_msec; //-1 to wait indefinitely for response
 } mld_t;
 
 typedef struct MldMessage {
@@ -113,15 +113,17 @@ uint32_t mldSerialNum(mld_t* mld);
 uint32_t mldCheckConfig(mld_t* mld);
 
 //Configures the driver for control via TTL signals
+//Currently not working
 uint32_t mldHWConfig(mld_t* mld);
 
 //Configures the driver for control via serial commands
+//Currently not working
 uint32_t mldSWConfig(mld_t* mld);
 
 //Selects the trigger source as either external (TTL signals/serial commands)
-//or internal (internal PRR generator)
+//or internal (internal PRR generator).
+//Currently not working
 uint32_t mldTrigConfig(mld_t* mld, mld_trig_t trig_src);
-
 
 //Sets/unsets the interlock/enable
 uint16_t mldLaserControl(mld_t* mld, mld_controls_t cntrl);
