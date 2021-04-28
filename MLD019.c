@@ -257,6 +257,7 @@ mld_t* mldInit(char* sertty, int serial_timeout_msec) {
 }   //end mldInit
 
 int mldClose(mld_t* mld){
+    if (mld == NULL) return 0;
     int close_status = serClose(mld->serial_handle);
     free(mld);
     return close_status;
