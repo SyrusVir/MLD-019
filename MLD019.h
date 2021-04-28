@@ -1,8 +1,8 @@
 #ifndef _MLD019_H_
-#define _MLD019_H
+#define _MLD019_H_
 
 #include <pigpio.h>
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 typedef enum mld_mode {
